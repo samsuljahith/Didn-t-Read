@@ -1,6 +1,8 @@
 const summarizeBtn = document.getElementById('summarize-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const optionsLink = document.getElementById('options-link');
+const privacyNotice = document.getElementById('privacy-notice');
+const dismissPrivacyBtn = document.getElementById('dismiss-privacy');
 const apiKeyBanner = document.getElementById('api-key-banner');
 const statusEl = document.getElementById('status');
 const metaEl = document.getElementById('meta');
@@ -26,6 +28,11 @@ const ANALYSIS_SECTIONS = [
 optionsLink.addEventListener('click', (e) => {
   e.preventDefault();
   chrome.runtime.openOptionsPage();
+});
+
+dismissPrivacyBtn.addEventListener('click', async () => {
+  await chrome.runtime.sendMessage({ type: 'ACK_PRIVACY' });
+  privacyNotice.hidden = true;
 });
 
 summarizeBtn.addEventListener('click', startSummarize);
@@ -60,8 +67,11 @@ async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabId = tab?.id ?? null;
 
-  const { hasApiKey } = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+  const { hasApiKey, privacyAcknowledged } = await chrome.runtime.sendMessage({
+    type: 'GET_SETTINGS',
+  });
   apiKeyBanner.hidden = hasApiKey;
+  privacyNotice.hidden = privacyAcknowledged;
 
   if (currentTabId) {
     const { cached } = await chrome.runtime.sendMessage({

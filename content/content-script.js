@@ -8,8 +8,68 @@ if (!globalThis.__didntReadInjected) {
         .catch((err) => sendResponse({ error: err.message ?? 'Extraction failed' }));
       return true;
     }
+
+    if (message.type === 'EXTRACT_POLICY_URL') {
+      extractPolicyFromUrl(message.url, message.meta)
+        .then(sendResponse)
+        .catch((err) => sendResponse({ error: err.message ?? 'Policy fetch failed' }));
+      return true;
+    }
+
     return false;
   });
+}
+
+/**
+ * @param {string} url
+ * @param {Record<string, unknown>} meta
+ */
+async function extractPolicyFromUrl(url, meta) {
+  if (url.startsWith('http:')) {
+    throw new Error('Only HTTPS policy URLs are supported.');
+  }
+  if (/\.pdf(\?|$)/i.test(url)) {
+    throw new Error('Policy is a PDF — open it in the browser to summarize.');
+  }
+
+  const policyOrigin = new URL(url, location.href).origin;
+  if (policyOrigin !== location.origin) {
+    return { crossOrigin: true };
+  }
+
+  const res = await fetch(url, { credentials: 'same-origin', redirect: 'follow' });
+  if (!res.ok) {
+    throw new Error(`Could not fetch policy page (HTTP ${res.status})`);
+  }
+
+  const contentType = res.headers.get('content-type') ?? '';
+  if (contentType.includes('pdf')) {
+    throw new Error('Policy is a PDF — open it in the browser to summarize.');
+  }
+
+  const html = await res.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const extracted = extractDocumentFromDoc(doc);
+
+  if (extracted.wordCount < 100) {
+    throw new Error('Fetched page had too little text — it may require login.');
+  }
+
+  return {
+    docType: meta.docType,
+    confidence: meta.confidence ?? 0.85,
+    needsConfirmation: false,
+    mode: 'document',
+    isLegal: true,
+    sourceUrl: url,
+    originalUrl: meta.originalUrl,
+    fetchedFromHub: true,
+    linkLabel: meta.linkLabel,
+    title: extracted.title,
+    text: extracted.text,
+    wordCount: extracted.wordCount,
+    extractedAt: new Date().toISOString(),
+  };
 }
 
 async function detectAndExtract() {

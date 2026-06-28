@@ -17,23 +17,61 @@ h1 {
   font-size: 20px;
 }
 
+h2 {
+  margin: 0 0 14px;
+  font-size: 15px;
+}
+
+.card {
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
 label {
   display: block;
   margin-bottom: 4px;
   font-weight: 500;
+  font-size: 13px;
 }
 
 input {
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   padding: 8px 10px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 14px;
 }
 
+.key-saved {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.key-mask {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: #166534;
+}
+
+.key-saved-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #15803d;
+}
+
 .hint {
-  margin: -8px 0 16px;
+  margin: -4px 0 12px;
   font-size: 12px;
   color: #6b7280;
 }
@@ -53,7 +91,7 @@ input {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 button {
@@ -64,28 +102,57 @@ button {
   cursor: pointer;
 }
 
+#save-key-btn,
 button[type='submit'] {
   background: #2563eb;
   color: #fff;
 }
 
+#save-key-btn:hover,
 button[type='submit']:hover {
   background: #1d4ed8;
 }
 
-#validate-btn,
-#clear-key-btn {
+#test-btn {
   background: #fff;
   border: 1px solid #d1d5db;
   color: #374151;
 }
 
+#test-btn:hover {
+  background: #f9fafb;
+}
+
+button.subtle {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #6b7280;
+  text-decoration: underline;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .status {
-  margin-top: 12px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 6px;
   font-size: 13px;
   color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
 }
 
 .status.error {
   color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.status.pending {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
 }

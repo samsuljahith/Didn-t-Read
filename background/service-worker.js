@@ -39,9 +39,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'GET_SETTINGS') {
-    Promise.all([getApiKey(), getSettings()]).then(([apiKey, settings]) => {
-      sendResponse({ hasApiKey: Boolean(apiKey), settings });
-    });
+    Promise.all([getApiKey(), getSettings(), isPrivacyAcknowledged()]).then(
+      ([apiKey, settings, privacyAcknowledged]) => {
+        sendResponse({ hasApiKey: Boolean(apiKey), settings, privacyAcknowledged });
+      },
+    );
+    return true;
+  }
+
+  if (message.type === 'ACK_PRIVACY') {
+    setPrivacyAcknowledged().then(() => sendResponse({ ok: true }));
     return true;
   }
 
@@ -54,8 +61,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return false;
   }
 
-  if (message.type === 'VALIDATE_API_KEY') {
-    validateApiKey(message.apiKey, message.settings)
+  if (message.type === 'TEST_CONNECTION' || message.type === 'VALIDATE_API_KEY') {
+    testConnection(message.apiKey, message.settings)
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ error: err.message }));
     return true;
@@ -116,12 +123,28 @@ async function extractFromTab(tabId) {
 
   if (response.needsFetch && response.policyUrl) {
     broadcastProgress(tabId, { phase: 'fetching', current: 0, total: 1 });
-    return extractFromUrl(response.policyUrl, {
+
+    const meta = {
       docType: response.docType,
       confidence: response.confidence,
       originalUrl: response.originalUrl,
       linkLabel: response.linkLabel,
+    };
+
+    const fromPage = await chrome.tabs.sendMessage(tabId, {
+      type: 'EXTRACT_POLICY_URL',
+      url: response.policyUrl,
+      meta,
     });
+
+    if (fromPage?.error) {
+      throw new Error(fromPage.error);
+    }
+    if (fromPage?.text) {
+      return fromPage;
+    }
+
+    return extractFromUrl(response.policyUrl, meta);
   }
 
   if (!response?.text?.trim()) {

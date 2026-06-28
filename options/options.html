@@ -10,17 +10,40 @@
     <main>
       <h1>Settings</h1>
 
-      <form id="settings-form">
-        <label for="api-key">API key</label>
-        <input id="api-key" type="password" autocomplete="off" placeholder="sk-…" />
+      <section class="card">
+        <h2>API key</h2>
+
+        <div id="key-saved" class="key-saved" hidden>
+          <span class="key-mask" aria-label="API key saved">••••••••••••</span>
+          <span class="key-saved-label">Key saved</span>
+        </div>
+
+        <label for="api-key">Enter or replace API key</label>
+        <input
+          id="api-key"
+          type="password"
+          autocomplete="off"
+          placeholder="sk-…"
+          spellcheck="false"
+        />
         <p class="hint security">
-          Your API key is stored only in this browser (<code>chrome.storage.local</code>).
-          It is sent directly to your chosen LLM provider and nowhere else. Anyone with access
-          to this computer can read extension storage.
+          Stored in <code>chrome.storage.local</code> on this device only. Sent directly to your
+          LLM provider when you summarize. Never logged by this extension.
         </p>
+
+        <div class="buttons">
+          <button type="button" id="save-key-btn">Save key</button>
+          <button type="button" id="test-btn">Test connection</button>
+          <button type="button" id="clear-key-btn" class="subtle">Clear key</button>
+        </div>
+      </section>
+
+      <form id="settings-form" class="card">
+        <h2>Provider</h2>
 
         <label for="provider-url">Provider URL</label>
         <input id="provider-url" type="url" placeholder="https://api.openai.com/v1" />
+        <p class="hint">OpenAI-compatible endpoint. Network access is requested when you test.</p>
 
         <label for="model">Model</label>
         <input id="model" type="text" placeholder="gpt-4o-mini" />
@@ -32,13 +55,11 @@
         <input id="temperature" type="number" min="0" max="1" step="0.1" />
 
         <div class="buttons">
-          <button type="submit">Save</button>
-          <button type="button" id="validate-btn">Validate key</button>
-          <button type="button" id="clear-key-btn">Clear API key</button>
+          <button type="submit">Save provider settings</button>
         </div>
       </form>
 
-      <p id="save-status" class="status" hidden></p>
+      <p id="save-status" class="status" role="status" hidden></p>
     </main>
 
     <script src="options.js"></script>

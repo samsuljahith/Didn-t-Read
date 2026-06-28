@@ -50,8 +50,10 @@ Documents over ~3,000 words are split into overlapping chunks, summarized in par
 | `scripting` | Programmatic content script injection |
 | `sidePanel` | Summary UI |
 | `storage` | API key (local) + per-tab cache (session) |
-| `optional_host_permissions` | Requested at runtime for your LLM provider origin |
+| `optional_host_permissions` | `https://api.openai.com/*` — requested when you test/summarize (custom hosts prompt at runtime if declared) |
+
+Same-origin linked policies are fetched via the page content script (no extra host permission). Cross-origin policy links may prompt for access or ask you to open the policy page directly.
 
 ## Security
 
-API keys are stored in `chrome.storage.local` on your machine. They are sent only to the LLM provider you configure. Anyone with access to this computer can inspect extension storage.
+API keys are stored in `chrome.storage.local` on your machine. They are sent only to the LLM provider you configure. This extension does not log API keys. Anyone with access to this computer can inspect extension storage.

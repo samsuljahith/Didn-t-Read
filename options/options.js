@@ -1,10 +1,12 @@
 const form = document.getElementById('settings-form');
 const apiKeyInput = document.getElementById('api-key');
+const keySavedEl = document.getElementById('key-saved');
 const providerUrlInput = document.getElementById('provider-url');
 const modelInput = document.getElementById('model');
 const maxChunkInput = document.getElementById('max-chunk-tokens');
 const temperatureInput = document.getElementById('temperature');
-const validateBtn = document.getElementById('validate-btn');
+const saveKeyBtn = document.getElementById('save-key-btn');
+const testBtn = document.getElementById('test-btn');
 const clearKeyBtn = document.getElementById('clear-key-btn');
 const saveStatus = document.getElementById('save-status');
 
@@ -24,31 +26,28 @@ loadSettings();
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  await saveSettings(false);
+  await saveProviderSettings();
 });
 
-validateBtn.addEventListener('click', async () => {
-  await saveSettings(true);
-});
-
-clearKeyBtn.addEventListener('click', async () => {
-  await chrome.storage.local.remove(STORAGE_KEYS.apiKey);
-  apiKeyInput.value = '';
-  apiKeyInput.placeholder = 'sk-…';
-  showStatus('API key cleared');
-});
+saveKeyBtn.addEventListener('click', saveApiKey);
+testBtn.addEventListener('click', testConnection);
+clearKeyBtn.addEventListener('click', clearApiKey);
 
 async function loadSettings() {
   const result = await chrome.storage.local.get([STORAGE_KEYS.apiKey, STORAGE_KEYS.settings]);
   const settings = { ...DEFAULTS, ...result[STORAGE_KEYS.settings] };
 
-  if (result[STORAGE_KEYS.apiKey]) {
-    apiKeyInput.placeholder = '•••••••• (saved)';
-  }
+  updateKeySavedUi(Boolean(result[STORAGE_KEYS.apiKey]));
   providerUrlInput.value = settings.providerUrl;
   modelInput.value = settings.model;
   maxChunkInput.value = String(settings.maxChunkTokens);
   temperatureInput.value = String(settings.temperature);
+}
+
+/** @param {boolean} hasKey */
+function updateKeySavedUi(hasKey) {
+  keySavedEl.hidden = !hasKey;
+  apiKeyInput.placeholder = hasKey ? 'Enter new key to replace' : 'sk-…';
 }
 
 function readSettings() {
@@ -60,53 +59,71 @@ function readSettings() {
   };
 }
 
-/** @param {boolean} validate */
-async function saveSettings(validate) {
-  const settings = readSettings();
-  const updates = { [STORAGE_KEYS.settings]: settings };
-
+async function saveApiKey() {
   const apiKey = apiKeyInput.value.trim();
-  let keyToValidate = apiKey;
-
-  if (apiKey) {
-    updates[STORAGE_KEYS.apiKey] = apiKey;
-  } else {
-    const stored = await chrome.storage.local.get(STORAGE_KEYS.apiKey);
-    keyToValidate = stored[STORAGE_KEYS.apiKey] ?? '';
+  if (!apiKey) {
+    showStatus('Enter an API key to save', true);
+    return;
   }
 
-  if (validate) {
-    if (!keyToValidate) {
-      showStatus('Enter or save an API key first', true);
-      return;
-    }
-    showStatus('Validating…');
-    const result = await chrome.runtime.sendMessage({
-      type: 'VALIDATE_API_KEY',
-      apiKey: keyToValidate,
-      settings,
-    });
-    if (result?.error) {
-      showStatus(result.error, true);
-      return;
-    }
-    showStatus('API key is valid');
-  }
-
-  await chrome.storage.local.set(updates);
-
-  if (apiKey) {
-    apiKeyInput.value = '';
-    apiKeyInput.placeholder = '•••••••• (saved)';
-  }
-
-  if (!validate) {
-    showStatus('Settings saved');
-  }
+  await chrome.storage.local.set({ [STORAGE_KEYS.apiKey]: apiKey });
+  apiKeyInput.value = '';
+  updateKeySavedUi(true);
+  showStatus('API key saved');
 }
 
-function showStatus(text, isError = false) {
+async function saveProviderSettings() {
+  await chrome.storage.local.set({ [STORAGE_KEYS.settings]: readSettings() });
+  showStatus('Provider settings saved');
+}
+
+async function testConnection() {
+  const settings = readSettings();
+  const typedKey = apiKeyInput.value.trim();
+  const stored = await chrome.storage.local.get(STORAGE_KEYS.apiKey);
+  const apiKey = typedKey || stored[STORAGE_KEYS.apiKey] || '';
+
+  if (!apiKey) {
+    showStatus('Enter or save an API key first', true);
+    return;
+  }
+
+  setBusy(true);
+  showStatus('Testing connection…', false, true);
+
+  const result = await chrome.runtime.sendMessage({
+    type: 'TEST_CONNECTION',
+    apiKey,
+    settings,
+  });
+
+  setBusy(false);
+
+  if (result?.error) {
+    showStatus(result.error, true);
+    return;
+  }
+
+  showStatus('Connection successful');
+}
+
+async function clearApiKey() {
+  await chrome.storage.local.remove(STORAGE_KEYS.apiKey);
+  apiKeyInput.value = '';
+  updateKeySavedUi(false);
+  showStatus('API key cleared');
+}
+
+/** @param {boolean} busy */
+function setBusy(busy) {
+  saveKeyBtn.disabled = busy;
+  testBtn.disabled = busy;
+  clearKeyBtn.disabled = busy;
+}
+
+/** @param {string} text @param {boolean} [isError] @param {boolean} [pending] */
+function showStatus(text, isError = false, pending = false) {
   saveStatus.textContent = text;
-  saveStatus.className = isError ? 'status error' : 'status';
+  saveStatus.className = isError ? 'status error' : pending ? 'status pending' : 'status';
   saveStatus.hidden = false;
 }

@@ -36,6 +36,39 @@ header h1 {
   color: #2563eb;
 }
 
+.privacy-notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #1e3a8a;
+}
+
+.privacy-notice strong {
+  font-weight: 600;
+}
+
+.privacy-notice button {
+  display: block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  background: #fff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  flex: none;
+}
+
+.privacy-notice button:hover {
+  background: #dbeafe;
+}
+
 .actions {
   display: flex;
   gap: 8px;
