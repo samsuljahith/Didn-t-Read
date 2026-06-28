@@ -4,6 +4,7 @@ importScripts(
   '../lib/messaging.js',
   '../lib/extract-html.js',
   '../lib/fetch-policy.js',
+  '../lib/analysis-cache.js',
   '../lib/llm/prompts.js',
   '../lib/llm/chunker.js',
   '../lib/llm/client.js',
@@ -27,7 +28,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'SUMMARIZE_TAB') {
-    handleSummarize(message.tabId)
+    handleSummarize(message.tabId, { force: Boolean(message.force) })
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ error: err.message ?? 'Summarization failed' }));
     return true;
@@ -69,8 +70,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-/** @param {number} tabId */
-async function handleSummarize(tabId) {
+/** @param {number} tabId @param {{ force?: boolean }} [options] */
+async function handleSummarize(tabId, options = {}) {
+  const force = options.force ?? false;
   const apiKey = await getApiKey();
   if (!apiKey) {
     throw new Error('No API key configured. Open Settings to add one.');
@@ -87,16 +89,36 @@ async function handleSummarize(tabId) {
     broadcastProgress(tabId, { phase: 'detecting', current: 0, total: 1 });
     const doc = await extractFromTab(tabId);
     const settings = await getSettings();
+    const textHash = await hashText(doc.text);
 
-    const summary = await analyze(
-      doc,
-      apiKey,
-      settings,
-      (progress) => broadcastProgress(tabId, progress),
-      controller.signal,
-    );
+    let summary;
+    let fromCache = false;
 
-    const result = { doc, summary };
+    if (!force) {
+      const cached = await getAnalysisCache(textHash, settings);
+      if (cached) {
+        logCacheEvent(textHash, 'hit');
+        summary = cached;
+        fromCache = true;
+      } else {
+        logCacheEvent(textHash, 'miss');
+      }
+    } else {
+      logCacheEvent(textHash, 'bypass');
+    }
+
+    if (!summary) {
+      summary = await analyze(
+        doc,
+        apiKey,
+        settings,
+        (progress) => broadcastProgress(tabId, progress),
+        controller.signal,
+      );
+      await setAnalysisCache(textHash, settings, summary);
+    }
+
+    const result = { doc, summary, fromCache };
     await setTabSummary(tabId, result);
     broadcastComplete(tabId, summary, doc);
     return result;

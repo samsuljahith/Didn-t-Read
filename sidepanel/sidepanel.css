@@ -71,8 +71,17 @@ header h1 {
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.actions #summarize-btn {
+  flex: 1 1 100%;
+}
+
+.actions #reanalyze-btn {
+  flex: 1;
 }
 
 button {

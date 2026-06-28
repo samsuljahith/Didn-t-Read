@@ -1,4 +1,5 @@
 const summarizeBtn = document.getElementById('summarize-btn');
+const reanalyzeBtn = document.getElementById('reanalyze-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const optionsLink = document.getElementById('options-link');
 const privacyNotice = document.getElementById('privacy-notice');
@@ -35,7 +36,8 @@ dismissPrivacyBtn.addEventListener('click', async () => {
   privacyNotice.hidden = true;
 });
 
-summarizeBtn.addEventListener('click', startSummarize);
+summarizeBtn.addEventListener('click', () => startSummarize(false));
+reanalyzeBtn.addEventListener('click', () => startSummarize(true));
 cancelBtn.addEventListener('click', cancelSummarize);
 
 chrome.runtime.onMessage.addListener((message) => {
@@ -79,12 +81,12 @@ async function init() {
       tabId: currentTabId,
     });
     if (cached) {
-      renderResult(cached.doc, cached.summary);
+      renderResult(cached.doc, cached.summary, { fromCache: cached.fromCache });
     }
   }
 }
 
-async function startSummarize() {
+async function startSummarize(force = false) {
   if (!currentTabId) {
     showError('No active tab found');
     return;
@@ -93,13 +95,14 @@ async function startSummarize() {
   setRunning(true);
   metaEl.hidden = true;
   clearStatus();
-  showLoadingState();
+  showLoadingState(force ? 'Re-analyzing (cache bypassed)…' : undefined);
   showProgress({ phase: 'detecting', current: 0, total: 1 });
 
   try {
     const result = await chrome.runtime.sendMessage({
       type: 'SUMMARIZE_TAB',
       tabId: currentTabId,
+      force,
     });
 
     if (result?.error) {
@@ -108,7 +111,7 @@ async function startSummarize() {
 
     if (result?.doc && result?.summary) {
       hideProgress();
-      renderResult(result.doc, result.summary);
+      renderResult(result.doc, result.summary, { fromCache: result.fromCache });
       setRunning(false);
     }
   } catch (err) {
@@ -131,6 +134,7 @@ async function cancelSummarize() {
 /** @param {boolean} running */
 function setRunning(running) {
   summarizeBtn.disabled = running;
+  reanalyzeBtn.disabled = running;
   cancelBtn.hidden = !running;
 }
 
@@ -155,12 +159,13 @@ function hideProgress() {
   progressFill.style.width = '0%';
 }
 
-function showLoadingState() {
+/** @param {string} [message] */
+function showLoadingState(message) {
   summaryEl.hidden = false;
   summaryEl.innerHTML = `
     <div class="loading-state">
       <div class="loading-spinner" aria-hidden="true"></div>
-      <p>Reading and analyzing the document…</p>
+      <p>${escapeHtml(message ?? 'Reading and analyzing the document…')}</p>
     </div>
   `;
 }
@@ -262,11 +267,15 @@ function riskSeverityClass(riskScore) {
   return 'risk-low';
 }
 
-function renderResult(doc, summary) {
+function renderResult(doc, summary, options = {}) {
   const normalized = normalizeSummary(summary);
 
   const confirmNote = doc.needsConfirmation
     ? '<p class="status warn meta-notes">Low confidence — please verify this is the right document.</p>'
+    : '';
+
+  const cacheNote = options.fromCache
+    ? '<p class="status info meta-notes">Loaded from cache — use Re-analyze for a fresh LLM pass.</p>'
     : '';
 
   const hubNote = doc.fetchedFromHub
@@ -279,6 +288,7 @@ function renderResult(doc, summary) {
 
   metaEl.innerHTML = `
     ${confirmNote}
+    ${cacheNote}
     ${hubNote}
     <span class="badge">${escapeHtml(doc.docType)}</span>
     <span>${doc.wordCount.toLocaleString()} words</span>
