@@ -31,6 +31,9 @@ const taglineEl = document.getElementById('tagline');
 /** @type {number | null} */
 let currentTabId = null;
 
+/** @type {string | null} */
+let currentPageUrl = null;
+
 /** @type {boolean} */
 let consentGiven = false;
 
@@ -127,6 +130,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'TAB_CONTEXT_CHANGED') {
+    onTabContextChanged(message.tabId, message.url).catch(() => {});
+    return;
+  }
+
   if (message.tabId !== currentTabId) {
     return;
   }
@@ -157,6 +165,17 @@ chrome.runtime.onMessage.addListener((message) => {
     showError(message.error.message);
     setRunning(false);
   }
+});
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  chrome.tabs
+    .get(activeInfo.tabId)
+    .then((tab) => {
+      if (tab?.id && tab.url) {
+        return onTabContextChanged(tab.id, tab.url, { isTabSwitch: true });
+      }
+    })
+    .catch(() => {});
 });
 
 init();
@@ -287,7 +306,11 @@ function renderPolicyDetected(detection) {
 
   if (!detection?.detected) {
     policyDetectedEl.hidden = true;
-    setNotLegal(false);
+    if (detection?.notLegal) {
+      setNotLegal(true);
+    } else {
+      setNotLegal(false);
+    }
     return;
   }
 
@@ -339,6 +362,68 @@ async function detectCurrentPage() {
     renderPolicyDetected(detection);
   } catch {
     policyDetectedEl.hidden = true;
+  }
+}
+
+async function resetPageState() {
+  if (currentTabId) {
+    await chrome.runtime.sendMessage({ type: 'CANCEL_JOB', tabId: currentTabId });
+  }
+  hideProgress();
+  hideSummary();
+  metaEl.hidden = true;
+  clearStatus();
+  policyDetectedEl.hidden = true;
+  notLegalScreen.hidden = true;
+  notLegal = false;
+  setRunning(false);
+  updateActionButtons();
+}
+
+/**
+ * @param {number} tabId
+ * @param {string} url
+ * @param {{ isTabSwitch?: boolean }} [options]
+ */
+async function onTabContextChanged(tabId, url, options = {}) {
+  const isTabSwitch = options.isTabSwitch ?? false;
+  if (!isTabSwitch && tabId !== currentTabId) {
+    return;
+  }
+
+  const urlChanged = url !== currentPageUrl;
+  const tabChanged = tabId !== currentTabId;
+  if (!urlChanged && !tabChanged) {
+    return;
+  }
+
+  currentTabId = tabId;
+  currentPageUrl = url;
+
+  await resetPageState();
+  await detectCurrentPage();
+
+  if (notLegal) {
+    return;
+  }
+
+  if (isReadyToSummarize()) {
+    await startSummarize(false);
+    return;
+  }
+
+  if (consentGiven && currentTabId && (!providerNeedsApiKey() || hasApiKey)) {
+    const { cached } = await chrome.runtime.sendMessage({
+      type: 'GET_TAB_SUMMARY',
+      tabId: currentTabId,
+      expectedUrl: currentPageUrl,
+    });
+    if (cached) {
+      renderResult(cached.doc, cached.summary, {
+        fromCache: cached.fromCache,
+        priorityGrounding: cached.priorityGrounding,
+      });
+    }
   }
 }
 
@@ -398,6 +483,7 @@ async function init() {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabId = tab?.id ?? null;
+  currentPageUrl = tab?.url ?? null;
 
   const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
   hasApiKey = Boolean(settings?.hasApiKey);
@@ -426,6 +512,7 @@ async function init() {
   const { cached } = await chrome.runtime.sendMessage({
     type: 'GET_TAB_SUMMARY',
     tabId: currentTabId,
+    expectedUrl: currentPageUrl ?? undefined,
   });
   if (cached) {
     renderResult(cached.doc, cached.summary, {
@@ -441,6 +528,7 @@ async function startSummarize(force = false) {
     return;
   }
 
+  await detectCurrentPage();
   if (notLegal) {
     return;
   }

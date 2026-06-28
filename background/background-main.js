@@ -8,6 +8,66 @@ const CONTENT_SCRIPTS = [
 /** @type {{ tabId: number; controller: AbortController } | null} */
 let activeJob = null;
 
+/** @type {Map<number, string>} */
+const lastUrlByTabId = new Map();
+
+/**
+ * @param {string | undefined} url
+ */
+function isTrackableUrl(url) {
+  if (!url) {
+    return false;
+  }
+  return (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('file://')
+  );
+}
+
+/**
+ * @param {number} tabId
+ * @param {string} url
+ */
+async function handleTabContextChange(tabId, url) {
+  if (!isTrackableUrl(url)) {
+    return;
+  }
+
+  const previous = lastUrlByTabId.get(tabId);
+  if (previous === url) {
+    return;
+  }
+
+  lastUrlByTabId.set(tabId, url);
+  await clearTabSummary(tabId);
+
+  if (activeJob?.tabId === tabId) {
+    activeJob.controller.abort();
+    activeJob = null;
+  }
+
+  broadcastTabContextChanged(tabId, url);
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url) {
+    handleTabContextChange(tabId, changeInfo.url).catch(() => {});
+    return;
+  }
+  if (changeInfo.status === 'complete' && tab.url) {
+    handleTabContextChange(tabId, tab.url).catch(() => {});
+  }
+});
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  chrome.tabs.get(tabId).then((tab) => {
+    if (tab.url) {
+      handleTabContextChange(tabId, tab.url).catch(() => {});
+    }
+  }).catch(() => {});
+});
+
 /** Ensure toolbar click opens the side panel or Firefox sidebar. */
 function configureSidePanel() {
   if (!isFirefox && chrome.sidePanel) {
@@ -56,7 +116,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'GET_TAB_SUMMARY') {
-    getTabSummary(message.tabId).then((cached) => sendResponse({ cached }));
+    getTabSummary(message.tabId, message.expectedUrl).then((cached) => sendResponse({ cached }));
     return true;
   }
 
@@ -205,7 +265,9 @@ async function handleSummarize(tabId, options = {}) {
       await setAnalysisCache(textHash, settings, summary);
     }
 
+    const pageUrl = doc.sourceUrl ?? (await chrome.tabs.get(tabId).catch(() => null))?.url ?? '';
     const result = {
+      pageUrl,
       doc,
       summary,
       fromCache,
@@ -275,7 +337,7 @@ async function handleDetectTab(tabId) {
     };
   }
 
-  return { detected: false };
+  return { detected: false, notLegal: true, reason: 'not_a_legal_page' };
 }
 
 /** @param {number} tabId */
