@@ -1,13 +1,16 @@
 importScripts(
   '../lib/types.js',
+  '../lib/consent.js',
   '../lib/storage.js',
   '../lib/messaging.js',
   '../lib/extract-html.js',
   '../lib/fetch-policy.js',
   '../lib/analysis-cache.js',
+  '../lib/llm/gemini-schema.js',
+  '../lib/llm/validate-summary.js',
+  '../lib/llm/gemini-client.js',
   '../lib/llm/prompts.js',
   '../lib/llm/chunker.js',
-  '../lib/llm/client.js',
   '../lib/llm/map-reduce.js',
   '../lib/analyze.js',
 );
@@ -40,16 +43,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'GET_SETTINGS') {
-    Promise.all([getApiKey(), getSettings(), isPrivacyAcknowledged()]).then(
-      ([apiKey, settings, privacyAcknowledged]) => {
-        sendResponse({ hasApiKey: Boolean(apiKey), settings, privacyAcknowledged });
+    Promise.all([getApiKey(), getSettings(), getConsentState()]).then(
+      ([apiKey, settings, consent]) => {
+        sendResponse({
+          hasApiKey: Boolean(apiKey),
+          settings,
+          consentGiven: consent.given,
+          consentNeedsPrompt: consent.needsConsent,
+          consentVersion: consent.version,
+        });
       },
     );
     return true;
   }
 
-  if (message.type === 'ACK_PRIVACY') {
-    setPrivacyAcknowledged().then(() => sendResponse({ ok: true }));
+  if (message.type === 'GRANT_CONSENT') {
+    grantConsent().then(() => sendResponse({ ok: true, consentGiven: true }));
+    return true;
+  }
+
+  if (message.type === 'WITHDRAW_CONSENT') {
+    withdrawConsent().then(() => sendResponse({ ok: true, consentGiven: false }));
     return true;
   }
 
@@ -63,8 +77,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === 'TEST_CONNECTION' || message.type === 'VALIDATE_API_KEY') {
-    testConnection(message.apiKey, message.settings)
-      .then(() => sendResponse({ ok: true }))
+    hasConsent()
+      .then((ok) => {
+        if (!ok) {
+          sendResponse({
+            error: 'Accept the privacy consent in the side panel before testing the API.',
+          });
+          return;
+        }
+        return testConnection(message.apiKey, message.settings).then(() =>
+          sendResponse({ ok: true }),
+        );
+      })
       .catch((err) => sendResponse({ error: err.message }));
     return true;
   }
@@ -73,6 +97,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 /** @param {number} tabId @param {{ force?: boolean }} [options] */
 async function handleSummarize(tabId, options = {}) {
   const force = options.force ?? false;
+
+  if (!(await hasConsent())) {
+    broadcastConsentRequired(tabId, { force });
+    return { consentRequired: true };
+  }
+
   const apiKey = await getApiKey();
   if (!apiKey) {
     throw new Error('No API key configured. Open Settings to add one.');
@@ -108,9 +138,12 @@ async function handleSummarize(tabId, options = {}) {
     }
 
     if (!summary) {
+      if (!(await hasConsent())) {
+        broadcastConsentRequired(tabId, { force });
+        return { consentRequired: true };
+      }
       summary = await analyze(
         doc,
-        apiKey,
         settings,
         (progress) => broadcastProgress(tabId, progress),
         controller.signal,

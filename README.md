@@ -6,7 +6,7 @@ A Chrome extension that finds legal documents on the page you're viewing—priva
 
 1. **Detect** — Scores the page (URL, headings, link text, legal phrasing) to tell a full policy apart from a hub page that only links to one.
 2. **Extract** — Pulls main content with a Readability-style pass (strips nav, footer, ads). Hub pages can follow same-origin policy links automatically.
-3. **Analyze** — Sends text to your configured LLM (OpenAI-compatible API) and renders a structured summary: plain-language overview, risk score, key points, data collection, risky clauses, and more.
+3. **Analyze** — Sends text to **Google Gemini** (`generateContent` with structured JSON output) and renders a structured summary: plain-language overview, risk score, key points, data collection, risky clauses, and more.
 4. **Cache** — Reuses analysis when the same extracted text is seen again (hash keyed in `chrome.storage.local`). Use **Re-analyze** to force a fresh LLM call.
 
 Open the side panel from the toolbar icon, then click **Summarize this page**. Click the extension icon on the tab first so `activeTab` access is granted.
@@ -25,8 +25,8 @@ Open the side panel from the toolbar icon, then click **Summarize this page**. C
    or right-click the extension → **Options**.
 2. Paste your API key under **Enter or replace API key** → **Save key**.  
    The key is masked after save (shown as `••••••••••••`).
-3. Set **Provider URL** (default `https://api.openai.com/v1`) and **Model** (default `gpt-4o-mini`).
-4. Click **Test connection** to verify the key and grant network access to the provider.
+3. Set **Provider URL** (default `https://generativelanguage.googleapis.com/v1beta`) and **Model** (default `gemini-2.0-flash`).
+4. Click **Test connection** to verify your [Gemini API key](https://aistudio.google.com/apikey) and grant network access.
 5. Return to a legal page, open the side panel, and click **Summarize this page**.
 
 Keys are stored in **`chrome.storage.local`** on your device only. The extension never logs your API key.
@@ -58,7 +58,7 @@ After code changes, click **Reload** on `chrome://extensions`.
 | `scripting` | Inject the content script on demand |
 | `sidePanel` | Summary UI |
 | `storage` | API key, analysis cache, settings |
-| `optional_host_permissions` (`https://api.openai.com/*`) | LLM API calls (requested on test/summarize) |
+| `optional_host_permissions` (`https://generativelanguage.googleapis.com/*`) | Gemini API (requested on test/summarize) |
 
 ## Project layout
 
@@ -76,4 +76,4 @@ test/                        # unit tests
 
 ## Long documents
 
-Pages over ~3,000 words are chunked, summarized in parallel, then merged. Progress appears in the side panel during chunking.
+Most policies fit in one Gemini call (under ~90k estimated input tokens). Longer documents are chunked, summarized in parallel, then merged. Progress appears in the side panel during chunking.

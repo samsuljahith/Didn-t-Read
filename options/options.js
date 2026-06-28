@@ -9,6 +9,9 @@ const saveKeyBtn = document.getElementById('save-key-btn');
 const testBtn = document.getElementById('test-btn');
 const clearKeyBtn = document.getElementById('clear-key-btn');
 const saveStatus = document.getElementById('save-status');
+const consentDisclosure = document.getElementById('consent-disclosure');
+const consentStatus = document.getElementById('consent-status');
+const withdrawConsentBtn = document.getElementById('withdraw-consent-btn');
 
 const STORAGE_KEYS = {
   apiKey: 'llmApiKey',
@@ -16,8 +19,8 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULTS = {
-  providerUrl: 'https://api.openai.com/v1',
-  model: 'gpt-4o-mini',
+  providerUrl: 'https://generativelanguage.googleapis.com/v1beta',
+  model: 'gemini-2.0-flash',
   maxChunkTokens: 3000,
   temperature: 0.2,
 };
@@ -32,8 +35,12 @@ form.addEventListener('submit', async (e) => {
 saveKeyBtn.addEventListener('click', saveApiKey);
 testBtn.addEventListener('click', testConnection);
 clearKeyBtn.addEventListener('click', clearApiKey);
+withdrawConsentBtn.addEventListener('click', withdrawConsent);
 
 async function loadSettings() {
+  renderConsentDisclosure();
+  await refreshConsentUi();
+
   const result = await chrome.storage.local.get([STORAGE_KEYS.apiKey, STORAGE_KEYS.settings]);
   const settings = { ...DEFAULTS, ...result[STORAGE_KEYS.settings] };
 
@@ -126,4 +133,33 @@ function showStatus(text, isError = false, pending = false) {
   saveStatus.textContent = text;
   saveStatus.className = isError ? 'status error' : pending ? 'status pending' : 'status';
   saveStatus.hidden = false;
+}
+
+function renderConsentDisclosure() {
+  consentDisclosure.innerHTML = CONSENT_DISCLOSURE_ITEMS.map(
+    (item) => `<li>${escapeHtml(item)}</li>`,
+  ).join('');
+}
+
+async function refreshConsentUi() {
+  const state = await getConsentState();
+  consentStatus.textContent = state.given
+    ? `Consent given (version ${CURRENT_CONSENT_VERSION}).`
+    : 'Consent not given — analysis is disabled until you accept in the side panel.';
+  consentStatus.className = state.given ? 'consent-status given' : 'consent-status pending';
+  withdrawConsentBtn.hidden = !state.given;
+}
+
+async function withdrawConsent() {
+  await chrome.runtime.sendMessage({ type: 'WITHDRAW_CONSENT' });
+  await refreshConsentUi();
+  showStatus('Consent withdrawn. No page text will be sent to Gemini until you accept again.');
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

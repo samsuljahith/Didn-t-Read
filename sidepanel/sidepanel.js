@@ -1,9 +1,13 @@
 const summarizeBtn = document.getElementById('summarize-btn');
 const reanalyzeBtn = document.getElementById('reanalyze-btn');
 const cancelBtn = document.getElementById('cancel-btn');
+const analysisActions = document.getElementById('analysis-actions');
 const optionsLink = document.getElementById('options-link');
-const privacyNotice = document.getElementById('privacy-notice');
-const dismissPrivacyBtn = document.getElementById('dismiss-privacy');
+const consentScreen = document.getElementById('consent-screen');
+const consentDisclosure = document.getElementById('consent-disclosure');
+const consentAcceptBtn = document.getElementById('consent-accept');
+const consentDeclineBtn = document.getElementById('consent-decline');
+const consentDeclinedEl = document.getElementById('consent-declined');
 const apiKeyBanner = document.getElementById('api-key-banner');
 const statusEl = document.getElementById('status');
 const metaEl = document.getElementById('meta');
@@ -15,9 +19,15 @@ const progressLabel = document.getElementById('progress-label');
 /** @type {number | null} */
 let currentTabId = null;
 
+/** @type {boolean} */
+let consentGiven = false;
+
+/** @type {{ force: boolean } | null} */
+let pendingSummarize = null;
+
 const ANALYSIS_SECTIONS = [
   { key: 'keyPoints', title: 'Key points', defaultOpen: true },
-  { key: 'riskyClauses', title: 'Risky clauses', risk: true, defaultOpen: true },
+  { key: 'riskyClauses', title: 'Risky clauses', risk: true },
   { key: 'dataCollection', title: 'Data collection' },
   { key: 'thirdPartySharing', title: 'Third-party sharing' },
   { key: 'subscriptionTerms', title: 'Subscription terms' },
@@ -31,17 +41,32 @@ optionsLink.addEventListener('click', (e) => {
   chrome.runtime.openOptionsPage();
 });
 
-dismissPrivacyBtn.addEventListener('click', async () => {
-  await chrome.runtime.sendMessage({ type: 'ACK_PRIVACY' });
-  privacyNotice.hidden = true;
-});
+consentAcceptBtn.addEventListener('click', acceptConsent);
+consentDeclineBtn.addEventListener('click', declineConsent);
 
 summarizeBtn.addEventListener('click', () => startSummarize(false));
 reanalyzeBtn.addEventListener('click', () => startSummarize(true));
 cancelBtn.addEventListener('click', cancelSummarize);
 
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') {
+    return;
+  }
+  if (changes.consentGiven || changes.consentVersion) {
+    refreshConsentFromStorage();
+  }
+});
+
 chrome.runtime.onMessage.addListener((message) => {
   if (message.tabId !== currentTabId) {
+    return;
+  }
+
+  if (message.type === 'CONSENT_REQUIRED') {
+    pendingSummarize = { force: Boolean(message.force) };
+    showConsentScreen();
+    hideProgress();
+    setRunning(false);
     return;
   }
 
@@ -65,30 +90,105 @@ chrome.runtime.onMessage.addListener((message) => {
 
 init();
 
+function renderConsentDisclosure() {
+  consentDisclosure.innerHTML = CONSENT_DISCLOSURE_ITEMS.map(
+    (item) => `<li>${escapeHtml(item)}</li>`,
+  ).join('');
+}
+
+/** @param {boolean} given */
+function setConsentUi(given) {
+  consentGiven = given;
+  consentScreen.hidden = given;
+  consentDeclinedEl.hidden = given || !consentDeclinedEl.dataset.declined;
+  summarizeBtn.disabled = !given;
+  reanalyzeBtn.disabled = !given;
+  analysisActions.hidden = false;
+
+  if (!given) {
+    hideSummary();
+    metaEl.hidden = true;
+    consentScreen.hidden = false;
+  }
+}
+
+function showConsentScreen() {
+  consentScreen.hidden = false;
+  consentDeclinedEl.hidden = true;
+  delete consentDeclinedEl.dataset.declined;
+  hideSummary();
+  metaEl.hidden = true;
+  clearStatus();
+}
+
+function declineConsent() {
+  pendingSummarize = null;
+  consentDeclinedEl.dataset.declined = '1';
+  consentDeclinedEl.hidden = false;
+  hideProgress();
+  hideSummary();
+  metaEl.hidden = true;
+  clearStatus();
+  setRunning(false);
+}
+
+async function acceptConsent() {
+  await chrome.runtime.sendMessage({ type: 'GRANT_CONSENT' });
+  consentDeclinedEl.hidden = true;
+  delete consentDeclinedEl.dataset.declined;
+  setConsentUi(true);
+
+  const pending = pendingSummarize;
+  pendingSummarize = null;
+  if (pending) {
+    await startSummarize(pending.force);
+  }
+}
+
+async function refreshConsentFromStorage() {
+  const given = await hasConsent();
+  if (given) {
+    setConsentUi(true);
+    return;
+  }
+  setConsentUi(false);
+  pendingSummarize = null;
+}
+
 async function init() {
+  renderConsentDisclosure();
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabId = tab?.id ?? null;
 
-  const { hasApiKey, privacyAcknowledged } = await chrome.runtime.sendMessage({
+  const { hasApiKey, consentGiven: given } = await chrome.runtime.sendMessage({
     type: 'GET_SETTINGS',
   });
   apiKeyBanner.hidden = hasApiKey;
-  privacyNotice.hidden = privacyAcknowledged;
+  setConsentUi(Boolean(given));
 
-  if (currentTabId) {
-    const { cached } = await chrome.runtime.sendMessage({
-      type: 'GET_TAB_SUMMARY',
-      tabId: currentTabId,
-    });
-    if (cached) {
-      renderResult(cached.doc, cached.summary, { fromCache: cached.fromCache });
-    }
+  if (!given || !currentTabId) {
+    return;
+  }
+
+  const { cached } = await chrome.runtime.sendMessage({
+    type: 'GET_TAB_SUMMARY',
+    tabId: currentTabId,
+  });
+  if (cached) {
+    renderResult(cached.doc, cached.summary, { fromCache: cached.fromCache });
   }
 }
 
 async function startSummarize(force = false) {
   if (!currentTabId) {
     showError('No active tab found');
+    return;
+  }
+
+  if (!consentGiven) {
+    pendingSummarize = { force };
+    showConsentScreen();
     return;
   }
 
@@ -107,6 +207,13 @@ async function startSummarize(force = false) {
 
     if (result?.error) {
       throw new Error(result.error);
+    }
+
+    if (result?.consentRequired) {
+      pendingSummarize = { force };
+      showConsentScreen();
+      setRunning(false);
+      return;
     }
 
     if (result?.doc && result?.summary) {
@@ -202,27 +309,48 @@ function normalizeSummary(summary) {
     summary.riskyClauses ?? summary.redFlags ?? []
   );
   const scoreRaw = summary.riskScore;
-  let score = 50;
-  let label = 'Moderate';
+  let value = 50;
+  let label = 'medium';
+  /** @type {import('../lib/types.js').RiskFactor[]} */
+  let factors = [];
 
   if (scoreRaw && typeof scoreRaw === 'object') {
-    const rs = /** @type {{ score?: number; label?: string }} */ (scoreRaw);
-    score = Number.isFinite(rs.score) ? Math.min(100, Math.max(0, Math.round(rs.score))) : 50;
-    label = rs.label || riskLabelFromScore(score);
+    const rs = /** @type {{ value?: number; score?: number; label?: string; factors?: unknown[] }} */ (
+      scoreRaw
+    );
+    const rawValue = rs.value ?? rs.score;
+    value = Number.isFinite(rawValue)
+      ? Math.min(100, Math.max(0, Math.round(rawValue)))
+      : 50;
+    label = normalizeRiskLabel(rs.label || riskLabelFromScore(value));
+    if (Array.isArray(rs.factors)) {
+      factors = rs.factors
+        .filter((f) => f && typeof f === 'object')
+        .map((f) => {
+          const factor = /** @type {Record<string, unknown>} */ (f);
+          return {
+            clause: String(factor.clause ?? ''),
+            category: String(factor.category ?? 'other'),
+            severity: String(factor.severity ?? 'normal'),
+            why: String(factor.why ?? ''),
+          };
+        })
+        .filter((f) => f.clause && f.why);
+    }
   } else if (risky.length >= 3) {
-    score = 75;
-    label = 'High';
+    value = 75;
+    label = 'high';
   } else if (risky.length >= 1) {
-    score = 45;
-    label = 'Moderate';
+    value = 45;
+    label = 'medium';
   } else {
-    score = 15;
-    label = 'Low';
+    value = 15;
+    label = 'low';
   }
 
   return {
     plainSummary: String(summary.plainSummary ?? summary.tldr ?? ''),
-    riskScore: { score, label },
+    riskScore: { value, label, factors },
     keyPoints: /** @type {string[]} */ (summary.keyPoints ?? []),
     riskyClauses: risky,
     dataCollection: /** @type {string[]} */ (
@@ -248,23 +376,58 @@ function normalizeSummary(summary) {
 /** @param {number} score */
 function riskLabelFromScore(score) {
   if (score >= 67) {
-    return 'High';
+    return 'high';
   }
   if (score >= 34) {
-    return 'Moderate';
+    return 'medium';
   }
-  return 'Low';
+  return 'low';
 }
 
-/** @param {{ score: number; label: string }} riskScore */
+/** @param {string} raw */
+function normalizeRiskLabel(raw) {
+  const s = String(raw).toLowerCase().trim();
+  if (s === 'high') {
+    return 'high';
+  }
+  if (s === 'low') {
+    return 'low';
+  }
+  if (s === 'medium' || s === 'moderate') {
+    return 'medium';
+  }
+  return 'medium';
+}
+
+/** @param {{ value: number; label: string }} riskScore */
 function riskSeverityClass(riskScore) {
-  if (riskScore.score >= 67) {
+  if (riskScore.label === 'high') {
     return 'risk-high';
   }
-  if (riskScore.score >= 34) {
-    return 'risk-moderate';
+  if (riskScore.label === 'medium') {
+    return 'risk-medium';
   }
   return 'risk-low';
+}
+
+const CATEGORY_LABELS = {
+  data_collection: 'Data collection',
+  third_party_sharing: 'Third-party sharing',
+  auto_renewal: 'Auto-renewal',
+  cancellation: 'Cancellation',
+  liability: 'Liability',
+  content_rights: 'Content rights',
+  other: 'Other',
+};
+
+/** @param {string} category */
+function formatCategory(category) {
+  return CATEGORY_LABELS[category] ?? category.replace(/_/g, ' ');
+}
+
+/** @param {string} label */
+function formatRiskLabel(label) {
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function renderResult(doc, summary, options = {}) {
@@ -299,11 +462,12 @@ function renderResult(doc, summary, options = {}) {
   metaEl.hidden = false;
 
   const riskClass = riskSeverityClass(normalized.riskScore);
+  const riskBreakdownHtml = renderRiskBreakdown(normalized.riskScore);
   const sectionsHtml = ANALYSIS_SECTIONS.map((section) =>
     renderCollapsibleSection(section, normalized[section.key]),
   ).join('');
 
-  const hasContent = normalized.plainSummary || sectionsHtml;
+  const hasContent = normalized.plainSummary || riskBreakdownHtml || sectionsHtml;
 
   summaryEl.innerHTML = hasContent
     ? `
@@ -313,16 +477,59 @@ function renderResult(doc, summary, options = {}) {
           ? escapeHtml(normalized.plainSummary)
           : '<span class="empty-state" style="padding:0;border:none;background:none">No summary available.</span>'
       }</p>
-      <div class="risk-badge ${riskClass}" title="Risk score ${normalized.riskScore.score}/100">
-        <span class="risk-score">${normalized.riskScore.score}</span>
-        <span class="risk-label">${escapeHtml(normalized.riskScore.label)}</span>
+      <div class="risk-badge ${riskClass}" title="Risk score ${normalized.riskScore.value}/100">
+        <span class="risk-score">${normalized.riskScore.value}</span>
+        <span class="risk-label">${escapeHtml(formatRiskLabel(normalized.riskScore.label))}</span>
       </div>
     </div>
+    ${riskBreakdownHtml}
     ${sectionsHtml}
   `
     : `<div class="empty-state">No analysis sections returned.</div>`;
 
   summaryEl.hidden = false;
+}
+
+/**
+ * @param {{ value: number; label: string; factors: import('../lib/types.js').RiskFactor[] }} riskScore
+ */
+function renderRiskBreakdown(riskScore) {
+  if (!riskScore.factors?.length) {
+    return '';
+  }
+
+  const rows = riskScore.factors
+    .map((factor) => {
+      const severity = ['normal', 'caution', 'red_flag'].includes(factor.severity)
+        ? factor.severity
+        : 'normal';
+      return `
+      <div class="risk-factor">
+        <span class="severity-dot severity-${severity}" title="${escapeHtml(severity.replace('_', ' '))}"></span>
+        <div class="risk-factor-body">
+          <div class="factor-head">
+            <span class="factor-category">${escapeHtml(formatCategory(factor.category))}</span>
+            <span class="factor-why">${escapeHtml(factor.why)}</span>
+          </div>
+          <details class="clause-quote">
+            <summary>View clause</summary>
+            <blockquote>${escapeHtml(factor.clause)}</blockquote>
+          </details>
+        </div>
+      </div>
+    `;
+    })
+    .join('');
+
+  return `
+    <details class="details-section risk-breakdown" open>
+      <summary>
+        Risk breakdown
+        <span class="count">${riskScore.factors.length}</span>
+      </summary>
+      <div class="details-body risk-factors">${rows}</div>
+    </details>
+  `;
 }
 
 /**

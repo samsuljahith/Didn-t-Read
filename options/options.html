@@ -42,11 +42,15 @@
         <h2>Provider</h2>
 
         <label for="provider-url">Provider URL</label>
-        <input id="provider-url" type="url" placeholder="https://api.openai.com/v1" />
-        <p class="hint">OpenAI-compatible endpoint. Network access is requested when you test.</p>
+        <input
+          id="provider-url"
+          type="url"
+          placeholder="https://generativelanguage.googleapis.com/v1beta"
+        />
+        <p class="hint">Google Gemini generateContent endpoint. Network access is requested when you test.</p>
 
         <label for="model">Model</label>
-        <input id="model" type="text" placeholder="gpt-4o-mini" />
+        <input id="model" type="text" placeholder="gemini-2.0-flash" />
 
         <label for="max-chunk-tokens">Max chunk tokens (long docs)</label>
         <input id="max-chunk-tokens" type="number" min="500" max="8000" step="100" />
@@ -59,9 +63,21 @@
         </div>
       </form>
 
+      <section class="card">
+        <h2>Privacy &amp; consent</h2>
+        <ul id="consent-disclosure" class="consent-disclosure"></ul>
+        <p id="consent-status" class="consent-status">Checking consent…</p>
+        <div class="buttons">
+          <button type="button" id="withdraw-consent-btn" class="subtle" hidden>
+            Withdraw consent
+          </button>
+        </div>
+      </section>
+
       <p id="save-status" class="status" role="status" hidden></p>
     </main>
 
+    <script src="../lib/consent.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

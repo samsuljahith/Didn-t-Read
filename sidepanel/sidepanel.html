@@ -12,10 +12,17 @@
       <p class="tagline">Legal doc summaries, plain English.</p>
     </header>
 
-    <p id="privacy-notice" class="privacy-notice" hidden>
-      <strong>Privacy:</strong> Summarizing sends extracted page text to your configured LLM
-      provider. Nothing is sent to us. Review sensitive pages before summarizing.
-      <button id="dismiss-privacy" type="button">Got it</button>
+    <section id="consent-screen" class="consent-screen" hidden>
+      <h2>Privacy consent</h2>
+      <ul id="consent-disclosure" class="consent-disclosure"></ul>
+      <div class="consent-actions">
+        <button id="consent-accept" type="button">Accept</button>
+        <button id="consent-decline" type="button" class="secondary">Decline</button>
+      </div>
+    </section>
+
+    <p id="consent-declined" class="consent-declined" hidden>
+      Analysis is disabled until you accept the privacy consent above.
     </p>
 
     <p id="api-key-banner" class="banner" hidden>
@@ -23,7 +30,7 @@
       <a id="options-link" href="#">Add one in Settings</a>
     </p>
 
-    <section class="actions">
+    <section id="analysis-actions" class="actions">
       <button id="summarize-btn" type="button">Summarize this page</button>
       <button id="reanalyze-btn" type="button" class="secondary" title="Skip cache and call the LLM again">
         Re-analyze
@@ -41,6 +48,7 @@
     <section id="meta" class="meta" hidden></section>
     <section id="summary" class="summary" hidden></section>
 
+    <script src="../lib/consent.js"></script>
     <script src="sidepanel.js"></script>
   </body>
 </html>

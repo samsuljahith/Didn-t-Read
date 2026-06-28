@@ -23,5 +23,5 @@
   },
   "options_page": "options/options.html",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
-  "optional_host_permissions": ["https://api.openai.com/*"]
+  "optional_host_permissions": ["https://generativelanguage.googleapis.com/*"]
 }
