@@ -1,29 +1,31 @@
-/** @param {...string} paths */
-function importExtensionScripts(...paths) {
-  importScripts(...paths.map((p) => chrome.runtime.getURL(p)));
-}
+/** Scripts shared by the service worker (relative to background/). */
+const SW_SCRIPTS = [
+  '../lib/llm/provider-config.js',
+  '../lib/consent.js',
+  '../lib/storage.js',
+  '../lib/messaging.js',
+  '../lib/extract-html.js',
+  '../lib/fetch-policy.js',
+  '../lib/analysis-cache.js',
+  '../lib/llm/response-schema.js',
+  '../lib/llm/validate-summary.js',
+  '../lib/llm/providers/gemini.js',
+  '../lib/llm/providers/openai.js',
+  '../lib/llm/providers/anthropic.js',
+  '../lib/llm/providers/grok.js',
+  '../lib/llm/router.js',
+  '../lib/llm/prompts.js',
+  '../lib/llm/chunker.js',
+  '../lib/llm/map-reduce.js',
+  '../lib/analyze.js',
+];
 
-importExtensionScripts(
-  'lib/types.js',
-  'lib/llm/provider-config.js',
-  'lib/consent.js',
-  'lib/storage.js',
-  'lib/messaging.js',
-  'lib/extract-html.js',
-  'lib/fetch-policy.js',
-  'lib/analysis-cache.js',
-  'lib/llm/response-schema.js',
-  'lib/llm/validate-summary.js',
-  'lib/llm/providers/gemini.js',
-  'lib/llm/providers/openai.js',
-  'lib/llm/providers/anthropic.js',
-  'lib/llm/providers/grok.js',
-  'lib/llm/router.js',
-  'lib/llm/prompts.js',
-  'lib/llm/chunker.js',
-  'lib/llm/map-reduce.js',
-  'lib/analyze.js',
-);
+// Top-level import for first install; install handler re-imports after extension updates.
+importScripts(...SW_SCRIPTS);
+
+self.addEventListener('install', () => {
+  importScripts(...SW_SCRIPTS);
+});
 
 const CONTENT_SCRIPTS = [
   'lib/extract-html.js',
