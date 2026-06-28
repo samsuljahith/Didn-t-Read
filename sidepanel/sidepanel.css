@@ -25,6 +25,13 @@ header h1 {
   margin-bottom: 16px;
 }
 
+.panel-logo {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
+
 .panel-header-text {
   flex: 1;
   min-width: 0;
