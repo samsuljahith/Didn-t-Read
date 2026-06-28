@@ -63,6 +63,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'DETECT_TAB') {
+    handleDetectTab(message.tabId)
+      .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ detected: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'SAVE_API_KEY') {
+    setApiKey(message.apiKey)
+      .then(() =>
+        chrome.storage.local.set({ setupComplete: true }).then(() => sendResponse({ ok: true })),
+      )
+      .catch((err) => sendResponse({ error: err.message }));
+    return true;
+  }
+
   if (message.type === 'GET_SETTINGS') {
     Promise.all([getApiKey(), getSettings(), getConsentState()]).then(
       ([apiKey, settings, consent]) => {
@@ -180,12 +196,54 @@ async function handleSummarize(tabId, options = {}) {
     if (err?.name === 'AbortError') {
       throw new Error('Cancelled');
     }
+    if (err?.code === 'NEEDS_ORIGIN_PERMISSION' && err.policyUrl) {
+      return {
+        needsOriginPermission: {
+          policyUrl: err.policyUrl,
+          origin: new URL(err.policyUrl).origin,
+        },
+      };
+    }
     throw err;
   } finally {
     if (activeJob?.tabId === tabId) {
       activeJob = null;
     }
   }
+}
+
+/** @param {number} tabId */
+async function handleDetectTab(tabId) {
+  await injectContentScripts(tabId);
+  const response = await chrome.tabs.sendMessage(tabId, { type: 'DETECT_AND_EXTRACT' });
+
+  if (response?.error) {
+    return { detected: false, error: response.error };
+  }
+
+  if (response.needsFetch && response.policyUrl) {
+    return {
+      detected: true,
+      docType: response.docType ?? 'unknown',
+      confidence: response.confidence ?? 0,
+      mode: 'hub',
+      linkLabel: response.linkLabel,
+      policyUrl: response.policyUrl,
+    };
+  }
+
+  if (response?.text?.trim()) {
+    return {
+      detected: true,
+      docType: response.docType ?? 'unknown',
+      confidence: response.confidence ?? 0,
+      mode: response.mode ?? 'document',
+      wordCount: response.wordCount ?? 0,
+      title: response.title,
+    };
+  }
+
+  return { detected: false };
 }
 
 /** @param {number} tabId */

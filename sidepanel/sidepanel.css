@@ -36,6 +36,137 @@ header h1 {
   color: #2563eb;
 }
 
+.policy-detected {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #047857;
+}
+
+.setup-screen {
+  margin: 0 0 12px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.setup-screen h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.setup-lead {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.setup-step {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.setup-step:last-of-type {
+  margin-bottom: 8px;
+}
+
+.step-num {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 24px;
+  text-align: center;
+}
+
+.step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.step-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.step-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.setup-step input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.setup-primary {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.setup-primary:hover {
+  background: #1d4ed8;
+}
+
+.setup-primary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.setup-result {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.setup-result-success {
+  color: #047857;
+}
+
+.setup-result-error {
+  color: #b91c1c;
+}
+
+.setup-result-pending {
+  color: #1d4ed8;
+}
+
+.setup-footer {
+  margin: 12px 0 0;
+  font-size: 12px;
+  text-align: center;
+}
+
+.setup-footer a {
+  color: #6b7280;
+}
+
 .consent-screen {
   margin: 0 0 12px;
   padding: 14px 14px 12px;
@@ -187,6 +318,23 @@ button.secondary:hover {
   background: #fffbeb;
   color: #92400e;
   border: 1px solid #fde68a;
+}
+
+.status.warn button {
+  display: block;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  background: #fff;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.status.warn button:hover {
+  background: #fef3c7;
 }
 
 .meta {

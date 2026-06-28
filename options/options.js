@@ -85,6 +85,12 @@ async function saveProviderSettings() {
 }
 
 async function testConnection() {
+  const consent = await getConsentState();
+  if (!consent.given) {
+    showStatus('Accept privacy consent in the side panel before testing the API.', true);
+    return;
+  }
+
   const settings = readSettings();
   const typedKey = apiKeyInput.value.trim();
   const stored = await chrome.storage.local.get(LLM_STORAGE_KEYS.apiKey);
@@ -92,6 +98,12 @@ async function testConnection() {
 
   if (!apiKey) {
     showStatus('Enter or save an API key first', true);
+    return;
+  }
+
+  const geminiOk = await ensureGeminiHostPermission();
+  if (!geminiOk) {
+    showStatus('Network access to Gemini was denied.', true);
     return;
   }
 

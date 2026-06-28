@@ -8,7 +8,12 @@ const consentDisclosure = document.getElementById('consent-disclosure');
 const consentAcceptBtn = document.getElementById('consent-accept');
 const consentDeclineBtn = document.getElementById('consent-decline');
 const consentDeclinedEl = document.getElementById('consent-declined');
-const apiKeyBanner = document.getElementById('api-key-banner');
+const policyDetectedEl = document.getElementById('policy-detected');
+const setupScreen = document.getElementById('setup-screen');
+const getKeyBtn = document.getElementById('get-key-btn');
+const setupKeyInput = document.getElementById('setup-key-input');
+const connectBtn = document.getElementById('connect-btn');
+const setupResultEl = document.getElementById('setup-result');
 const statusEl = document.getElementById('status');
 const metaEl = document.getElementById('meta');
 const summaryEl = document.getElementById('summary');
@@ -22,8 +27,20 @@ let currentTabId = null;
 /** @type {boolean} */
 let consentGiven = false;
 
+/** @type {boolean} */
+let hasApiKey = false;
+
 /** @type {{ force: boolean } | null} */
 let pendingSummarize = null;
+
+const DOC_TYPE_LABELS = {
+  privacy: 'Privacy Policy',
+  terms: 'Terms of Service',
+  cookies: 'Cookie Policy',
+  unknown: 'legal document',
+};
+
+const GEMINI_KEY_URL = 'https://aistudio.google.com/apikey';
 
 const ANALYSIS_SECTIONS = [
   { key: 'keyPoints', title: 'Key points', defaultOpen: true },
@@ -44,6 +61,11 @@ optionsLink.addEventListener('click', (e) => {
 consentAcceptBtn.addEventListener('click', acceptConsent);
 consentDeclineBtn.addEventListener('click', declineConsent);
 
+getKeyBtn.addEventListener('click', () => {
+  chrome.tabs.create({ url: GEMINI_KEY_URL });
+});
+connectBtn.addEventListener('click', connectSetupKey);
+
 summarizeBtn.addEventListener('click', () => startSummarize(false));
 reanalyzeBtn.addEventListener('click', () => startSummarize(true));
 cancelBtn.addEventListener('click', cancelSummarize);
@@ -54,6 +76,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
   if (changes.consentGiven || changes.consentVersion) {
     refreshConsentFromStorage();
+  }
+  if (changes.llmApiKey) {
+    hasApiKey = Boolean(changes.llmApiKey.newValue);
+    if (hasApiKey) {
+      hideSetupScreen();
+    }
   }
 });
 
@@ -112,6 +140,134 @@ function setConsentUi(given) {
   }
 }
 
+function showSetupScreen() {
+  setupScreen.hidden = false;
+  setupResultEl.hidden = true;
+  setupResultEl.textContent = '';
+  setupResultEl.className = 'setup-result';
+  analysisActions.hidden = true;
+  hideSummary();
+  metaEl.hidden = true;
+  clearStatus();
+}
+
+function hideSetupScreen() {
+  setupScreen.hidden = true;
+  analysisActions.hidden = false;
+}
+
+function showSetupResult(message, kind) {
+  setupResultEl.hidden = false;
+  setupResultEl.textContent = message;
+  setupResultEl.className = `setup-result setup-result-${kind}`;
+}
+
+function friendlyConnectionError(message) {
+  const text = String(message).toLowerCase();
+  if (
+    text.includes('invalid') ||
+    text.includes('api key') ||
+    text.includes('403') ||
+    text.includes('401')
+  ) {
+    return "That key didn't work — check you copied all of it.";
+  }
+  if (text.includes('consent')) {
+    return 'Please accept the privacy notice first, then try Connect again.';
+  }
+  if (text.includes('network') || text.includes('denied') || text.includes('permission')) {
+    return 'Connection was blocked. Allow access when Chrome asks, then try again.';
+  }
+  return "Couldn't connect — double-check your key and try again.";
+}
+
+async function connectSetupKey() {
+  const key = setupKeyInput.value.trim();
+  if (!key) {
+    showSetupResult('Paste your key from Google AI Studio first.', 'error');
+    return;
+  }
+
+  if (!consentGiven) {
+    pendingSummarize = pendingSummarize ?? { force: false };
+    showConsentScreen();
+    showSetupResult('Please accept the privacy notice first.', 'error');
+    return;
+  }
+
+  connectBtn.disabled = true;
+  showSetupResult('Checking your connection…', 'pending');
+
+  const geminiOk = await ensureGeminiHostPermission();
+  if (!geminiOk) {
+    connectBtn.disabled = false;
+    showSetupResult('Connection was blocked. Allow access when Chrome asks.', 'error');
+    return;
+  }
+
+  const { settings } = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+
+  const result = await chrome.runtime.sendMessage({
+    type: 'TEST_CONNECTION',
+    apiKey: key,
+    settings,
+  });
+
+  if (result?.error) {
+    connectBtn.disabled = false;
+    showSetupResult(friendlyConnectionError(result.error), 'error');
+    return;
+  }
+
+  await chrome.runtime.sendMessage({ type: 'SAVE_API_KEY', apiKey: key });
+  hasApiKey = true;
+  setupKeyInput.value = '';
+  connectBtn.disabled = false;
+  hideSetupScreen();
+
+  const pending = pendingSummarize;
+  pendingSummarize = null;
+  if (pending) {
+    await startSummarize(pending.force);
+  }
+}
+
+/**
+ * @param {{ detected: boolean; docType?: string; confidence?: number; mode?: string; linkLabel?: string; wordCount?: number }} detection
+ */
+function renderPolicyDetected(detection) {
+  if (!detection?.detected) {
+    policyDetectedEl.hidden = true;
+    return;
+  }
+
+  const label = DOC_TYPE_LABELS[detection.docType] ?? DOC_TYPE_LABELS.unknown;
+  const confidence = Math.round((detection.confidence ?? 0) * 100);
+
+  if (detection.mode === 'hub') {
+    policyDetectedEl.textContent = `Policy detected — this page links to a ${label.toLowerCase()}.`;
+  } else {
+    policyDetectedEl.textContent = `Policy detected — ${label} on this page (${confidence}% match).`;
+  }
+  policyDetectedEl.hidden = false;
+}
+
+async function detectCurrentPage() {
+  if (!currentTabId) {
+    return;
+  }
+
+  try {
+    const detection = await chrome.runtime.sendMessage({
+      type: 'DETECT_TAB',
+      tabId: currentTabId,
+    });
+    renderPolicyDetected(detection);
+  } catch {
+    policyDetectedEl.hidden = true;
+  }
+}
+
 function showConsentScreen() {
   consentScreen.hidden = false;
   consentDeclinedEl.hidden = true;
@@ -133,6 +289,12 @@ function declineConsent() {
 }
 
 async function acceptConsent() {
+  const geminiOk = await ensureGeminiHostPermission();
+  if (!geminiOk) {
+    showError('Network access to Gemini was denied. Allow it to analyze pages.');
+    return;
+  }
+
   await chrome.runtime.sendMessage({ type: 'GRANT_CONSENT' });
   consentDeclinedEl.hidden = true;
   delete consentDeclinedEl.dataset.declined;
@@ -142,6 +304,8 @@ async function acceptConsent() {
   pendingSummarize = null;
   if (pending) {
     await startSummarize(pending.force);
+  } else if (!hasApiKey) {
+    showSetupScreen();
   }
 }
 
@@ -161,13 +325,17 @@ async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabId = tab?.id ?? null;
 
-  const { hasApiKey, consentGiven: given } = await chrome.runtime.sendMessage({
-    type: 'GET_SETTINGS',
-  });
-  apiKeyBanner.hidden = hasApiKey;
-  setConsentUi(Boolean(given));
+  const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+  hasApiKey = Boolean(settings?.hasApiKey);
+  setConsentUi(Boolean(settings?.consentGiven));
 
-  if (!given || !currentTabId) {
+  detectCurrentPage();
+
+  if (!settings?.consentGiven || !currentTabId) {
+    return;
+  }
+
+  if (!hasApiKey) {
     return;
   }
 
@@ -189,6 +357,18 @@ async function startSummarize(force = false) {
   if (!consentGiven) {
     pendingSummarize = { force };
     showConsentScreen();
+    return;
+  }
+
+  if (!hasApiKey) {
+    pendingSummarize = { force };
+    showSetupScreen();
+    return;
+  }
+
+  const geminiOk = await ensureGeminiHostPermission();
+  if (!geminiOk) {
+    showError('Network access to Gemini was denied. Allow it to analyze pages.');
     return;
   }
 
@@ -216,6 +396,13 @@ async function startSummarize(force = false) {
       return;
     }
 
+    if (result?.needsOriginPermission) {
+      hideProgress();
+      promptOriginPermission(result.needsOriginPermission, force);
+      setRunning(false);
+      return;
+    }
+
     if (result?.doc && result?.summary) {
       hideProgress();
       renderResult(result.doc, result.summary, { fromCache: result.fromCache });
@@ -226,6 +413,33 @@ async function startSummarize(force = false) {
     showError(err.message ?? 'Something went wrong');
     setRunning(false);
   }
+}
+
+/**
+ * @param {{ origin: string; policyUrl: string }} detail
+ * @param {boolean} force
+ */
+function promptOriginPermission(detail, force) {
+  statusEl.hidden = false;
+  statusEl.className = 'status warn';
+  statusEl.innerHTML = `
+    This page links to a policy on <strong>${escapeHtml(detail.origin)}</strong>.
+    <button type="button" id="grant-origin-btn">Allow access</button>
+  `;
+
+  document.getElementById('grant-origin-btn')?.addEventListener(
+    'click',
+    async () => {
+      const ok = await ensureOriginHostPermission(detail.policyUrl);
+      if (!ok) {
+        showError(`Access to ${detail.origin} was denied. Open the policy page directly instead.`);
+        return;
+      }
+      clearStatus();
+      await startSummarize(force);
+    },
+    { once: true },
+  );
 }
 
 async function cancelSummarize() {

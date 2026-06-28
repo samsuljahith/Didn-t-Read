@@ -12,6 +12,8 @@
       <p class="tagline">Legal doc summaries, plain English.</p>
     </header>
 
+    <p id="policy-detected" class="policy-detected" hidden></p>
+
     <section id="consent-screen" class="consent-screen" hidden>
       <h2>Privacy consent</h2>
       <ul id="consent-disclosure" class="consent-disclosure"></ul>
@@ -25,10 +27,47 @@
       Analysis is disabled until you accept the privacy consent above.
     </p>
 
-    <p id="api-key-banner" class="banner" hidden>
-      No API key configured.
-      <a id="options-link" href="#">Add one in Settings</a>
-    </p>
+    <section id="setup-screen" class="setup-screen" hidden>
+      <h2>Quick setup</h2>
+      <p class="setup-lead">
+        To summarize this page, connect a free Google AI account. Takes about 30 seconds.
+      </p>
+
+      <div class="setup-step">
+        <span class="step-num" aria-hidden="true">1</span>
+        <div class="step-body">
+          <p class="step-title">Get your free Gemini key</p>
+          <p class="step-hint">It's free, takes a moment, and no credit card is needed.</p>
+          <button id="get-key-btn" type="button" class="setup-primary">Get your free key</button>
+        </div>
+      </div>
+
+      <div class="setup-step">
+        <span class="step-num" aria-hidden="true">2</span>
+        <div class="step-body">
+          <label class="step-title" for="setup-key-input">Paste your key here</label>
+          <input
+            id="setup-key-input"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Paste the key from Google AI Studio"
+          />
+        </div>
+      </div>
+
+      <div class="setup-step">
+        <span class="step-num" aria-hidden="true">3</span>
+        <div class="step-body">
+          <button id="connect-btn" type="button" class="setup-primary">Connect</button>
+          <p id="setup-result" class="setup-result" hidden role="status"></p>
+        </div>
+      </div>
+
+      <p class="setup-footer">
+        <a id="options-link" href="#">More options in Settings</a>
+      </p>
+    </section>
 
     <section id="analysis-actions" class="actions">
       <button id="summarize-btn" type="button">Summarize this page</button>
@@ -49,6 +88,7 @@
     <section id="summary" class="summary" hidden></section>
 
     <script src="../lib/consent.js"></script>
+    <script src="../lib/permissions.js"></script>
     <script src="sidepanel.js"></script>
   </body>
 </html>
