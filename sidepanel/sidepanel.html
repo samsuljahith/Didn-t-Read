@@ -7,9 +7,14 @@
     <link rel="stylesheet" href="sidepanel.css" />
   </head>
   <body>
-    <header>
-      <h1>Didn't Read</h1>
-      <p class="tagline">Legal doc summaries, plain English.</p>
+    <header class="panel-header">
+      <div class="panel-header-text">
+        <h1>Didn't Read</h1>
+        <p class="tagline">Legal doc summaries, plain English.</p>
+      </div>
+      <button id="settings-btn" type="button" class="header-settings-btn" title="Open Settings">
+        Settings
+      </button>
     </header>
 
     <p id="policy-detected" class="policy-detected" hidden></p>

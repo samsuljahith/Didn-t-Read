@@ -2,6 +2,7 @@ const summarizeBtn = document.getElementById('summarize-btn');
 const reanalyzeBtn = document.getElementById('reanalyze-btn');
 const cancelBtn = document.getElementById('cancel-btn');
 const analysisActions = document.getElementById('analysis-actions');
+const settingsBtn = document.getElementById('settings-btn');
 const optionsLink = document.getElementById('options-link');
 const consentScreen = document.getElementById('consent-screen');
 const consentDisclosure = document.getElementById('consent-disclosure');
@@ -53,8 +54,12 @@ const ANALYSIS_SECTIONS = [
   { key: 'legalClauses', title: 'Legal clauses' },
 ];
 
-optionsLink.addEventListener('click', (e) => {
+optionsLink?.addEventListener('click', (e) => {
   e.preventDefault();
+  chrome.runtime.openOptionsPage();
+});
+
+settingsBtn.addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
 });
 
@@ -410,7 +415,7 @@ async function startSummarize(force = false) {
     }
   } catch (err) {
     hideProgress();
-    showError(err.message ?? 'Something went wrong');
+    showError(friendlySummarizeError(err.message ?? 'Something went wrong'));
     setRunning(false);
   }
 }
@@ -494,6 +499,21 @@ function showLoadingState(message) {
 function hideSummary() {
   summaryEl.hidden = true;
   summaryEl.innerHTML = '';
+}
+
+function friendlySummarizeError(message) {
+  const text = String(message).toLowerCase();
+  if (
+    text.includes('no longer available') ||
+    text.includes('gemini-2.0') ||
+    (text.includes('404') && text.includes('model'))
+  ) {
+    return 'That AI model is outdated. Open Settings (top right), set Model to gemini-2.5-flash, save, then try again.';
+  }
+  if (text.includes('invalid api key') || text.includes('api key')) {
+    return "Your key didn't work. Open Settings to check or replace it.";
+  }
+  return String(message);
 }
 
 function showError(message) {

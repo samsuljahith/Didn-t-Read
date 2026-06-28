@@ -17,6 +17,39 @@ header h1 {
   font-size: 18px;
 }
 
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.panel-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-header .tagline {
+  margin: 0;
+}
+
+.header-settings-btn {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.header-settings-btn:hover {
+  background: #f3f4f6;
+}
+
 .tagline {
   margin: 0 0 16px;
   color: #666;

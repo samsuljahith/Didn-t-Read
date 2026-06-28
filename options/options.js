@@ -20,7 +20,7 @@ const LLM_STORAGE_KEYS = {
 
 const DEFAULTS = {
   providerUrl: 'https://generativelanguage.googleapis.com/v1beta',
-  model: 'gemini-2.0-flash',
+  model: 'gemini-2.5-flash',
   maxChunkTokens: 3000,
   temperature: 0.2,
 };
@@ -58,9 +58,10 @@ function updateKeySavedUi(hasKey) {
 }
 
 function readSettings() {
+  const model = modelInput.value.trim() || DEFAULTS.model;
   return {
     providerUrl: providerUrlInput.value.trim() || DEFAULTS.providerUrl,
-    model: modelInput.value.trim() || DEFAULTS.model,
+    model: model === 'gemini-2.0-flash' ? 'gemini-2.5-flash' : model,
     maxChunkTokens: Number(maxChunkInput.value) || DEFAULTS.maxChunkTokens,
     temperature: Number(temperatureInput.value) ?? DEFAULTS.temperature,
   };
