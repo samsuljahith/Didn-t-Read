@@ -109,7 +109,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'SUMMARIZE_TAB') {
-    handleSummarize(message.tabId, { force: Boolean(message.force) })
+    resolveTabId(message.tabId, message.expectedUrl)
+      .then((tabId) => handleSummarize(tabId, { force: Boolean(message.force) }))
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ error: err.message ?? 'Summarization failed' }));
     return true;
@@ -121,7 +122,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'DETECT_TAB') {
-    handleDetectTab(message.tabId)
+    resolveTabId(message.tabId, message.expectedUrl)
+      .then((tabId) => handleDetectTab(tabId))
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ detected: false, error: err.message }));
     return true;
@@ -195,6 +197,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
+
+/**
+ * Prefer the active tab in the last-focused window when the panel sends a stale tab id.
+ * @param {number} tabId
+ * @param {string} [expectedUrl]
+ */
+async function resolveTabId(tabId, expectedUrl) {
+  const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (!activeTab?.id) {
+    return tabId;
+  }
+
+  let resolvedId = tabId;
+  if (activeTab.id !== tabId) {
+    resolvedId = activeTab.id;
+  } else if (expectedUrl) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.url !== expectedUrl && activeTab.url === expectedUrl) {
+        resolvedId = activeTab.id;
+      }
+    } catch {
+      resolvedId = activeTab.id;
+    }
+  }
+
+  return resolvedId;
+}
 
 /** @param {number} tabId @param {{ force?: boolean }} [options] */
 async function handleSummarize(tabId, options = {}) {

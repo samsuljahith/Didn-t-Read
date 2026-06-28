@@ -364,6 +364,7 @@ async function detectCurrentPage() {
     const detection = await chrome.runtime.sendMessage({
       type: 'DETECT_TAB',
       tabId: currentTabId,
+      expectedUrl: currentPageUrl ?? undefined,
     });
     renderPolicyDetected(detection);
     return detection;
@@ -389,13 +390,40 @@ async function resetPageState() {
 }
 
 /**
+ * Active tab in the browser window (not the side panel context).
+ * @returns {Promise<chrome.tabs.Tab | null>}
+ */
+async function getActiveBrowserTab() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  return tab ?? null;
+}
+
+/**
+ * @returns {Promise<{ changed: boolean; tab: chrome.tabs.Tab | null }>}
+ */
+async function syncActiveTab() {
+  const tab = await getActiveBrowserTab();
+  if (!tab?.id) {
+    return { changed: false, tab: null };
+  }
+  const resolved = resolveTabForSidePanel(currentTabId, tab.id, currentPageUrl, tab.url);
+  if (resolved.changed) {
+    currentTabId = resolved.tabId;
+    currentPageUrl = resolved.pageUrl;
+  }
+  return { changed: resolved.changed, tab };
+}
+
+/**
  * @param {number} tabId
  * @param {string} url
  * @param {{ isTabSwitch?: boolean }} [options]
  */
 async function onTabContextChanged(tabId, url, options = {}) {
   const isTabSwitch = options.isTabSwitch ?? false;
-  if (!isTabSwitch && tabId !== currentTabId) {
+  const activeTab = await getActiveBrowserTab();
+  const isFocusedActiveTab = activeTab?.id === tabId;
+  if (!isTabSwitch && !isFocusedActiveTab && tabId !== currentTabId) {
     return;
   }
 
@@ -493,7 +521,7 @@ async function refreshConsentFromStorage() {
 async function init() {
   renderConsentDisclosure();
 
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   currentTabId = tab?.id ?? null;
   currentPageUrl = tab?.url ?? null;
 
@@ -535,6 +563,19 @@ async function init() {
 }
 
 async function startSummarize(force = false) {
+  const sync = await syncActiveTab();
+
+  if (sync.changed) {
+    await resetPageState();
+    const detection = await detectCurrentPage();
+    if (detection?.hostAccessDenied) {
+      return;
+    }
+    if (notLegal) {
+      return;
+    }
+  }
+
   if (!currentTabId) {
     showError(t('no_active_tab'));
     return;
@@ -581,6 +622,7 @@ async function startSummarize(force = false) {
     const result = await chrome.runtime.sendMessage({
       type: 'SUMMARIZE_TAB',
       tabId: currentTabId,
+      expectedUrl: currentPageUrl ?? undefined,
       force,
     });
 
