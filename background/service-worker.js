@@ -20,12 +20,8 @@ const SW_SCRIPTS = [
   '../lib/analyze.js',
 ];
 
-// Top-level import for first install; install handler re-imports after extension updates.
+// Must run once at top level during service worker evaluation.
 importScripts(...SW_SCRIPTS);
-
-self.addEventListener('install', () => {
-  importScripts(...SW_SCRIPTS);
-});
 
 const CONTENT_SCRIPTS = [
   'lib/extract-html.js',
