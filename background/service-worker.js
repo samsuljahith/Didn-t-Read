@@ -25,8 +25,29 @@ const CONTENT_SCRIPTS = [
 /** @type {{ tabId: number; controller: AbortController } | null} */
 let activeJob = null;
 
+/** Ensure toolbar click opens the side panel (runs on install and every SW wake). */
+function configureSidePanel() {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
+}
+
+configureSidePanel();
+
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  configureSidePanel();
+});
+
+chrome.action.onClicked.addListener(async (tab) => {
+  try {
+    if (tab.id !== undefined) {
+      await chrome.sidePanel.open({ tabId: tab.id });
+      return;
+    }
+    if (tab.windowId !== undefined) {
+      await chrome.sidePanel.open({ windowId: tab.windowId });
+    }
+  } catch (err) {
+    console.error("[Didn't Read] Failed to open side panel:", err);
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
