@@ -66,9 +66,17 @@ async function loadSettings() {
   renderConsentDisclosure();
   await refreshConsentUi();
 
+  if (typeof isFirefox !== 'undefined' && isFirefox) {
+    const chromeOpt = providerIdSelect.querySelector('option[value="chrome"]');
+    chromeOpt?.remove();
+  }
+
   const result = await chrome.storage.local.get([LLM_STORAGE_KEYS.apiKey, LLM_STORAGE_KEYS.settings]);
   const stored = result[LLM_STORAGE_KEYS.settings] ?? {};
-  const providerId = stored.providerId ?? 'gemini';
+  let providerId = stored.providerId ?? 'gemini';
+  if (typeof isFirefox !== 'undefined' && isFirefox && providerId === 'chrome') {
+    providerId = 'gemini';
+  }
   const config = getProviderConfig(providerId);
   const settings = {
     providerId,
@@ -78,6 +86,12 @@ async function loadSettings() {
     maxChunkTokens: stored.maxChunkTokens ?? 3000,
     temperature: stored.temperature ?? 0.1,
   };
+
+  if (typeof isFirefox !== 'undefined' && isFirefox && stored.providerId === 'chrome') {
+    await chrome.storage.local.set({
+      [LLM_STORAGE_KEYS.settings]: { ...stored, providerId: 'gemini' },
+    });
+  }
 
   lastProviderId = providerId;
   updateKeySavedUi(Boolean(result[LLM_STORAGE_KEYS.apiKey]));

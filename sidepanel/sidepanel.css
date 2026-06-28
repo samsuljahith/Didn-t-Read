@@ -762,6 +762,34 @@ button.secondary:hover {
   gap: 8px;
 }
 
+.priority-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.priority-verified {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d1fae5;
+  color: #047857;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.setup-privacy-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
 .priority-question {
   font-size: 13px;
   font-weight: 500;

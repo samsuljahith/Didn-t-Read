@@ -15,6 +15,7 @@ const getKeyBtn = document.getElementById('get-key-btn');
 const setupKeyInput = document.getElementById('setup-key-input');
 const connectBtn = document.getElementById('connect-btn');
 const setupResultEl = document.getElementById('setup-result');
+const setupPrivacyNote = document.getElementById('setup-privacy-note');
 const statusEl = document.getElementById('status');
 const metaEl = document.getElementById('meta');
 const summaryEl = document.getElementById('summary');
@@ -38,6 +39,9 @@ let hasApiKey = false;
 
 /** @type {boolean} */
 let notLegal = false;
+
+/** @type {boolean} */
+let isFirefoxBrowser = false;
 
 /** @type {'gemini' | 'openai' | 'anthropic' | 'grok' | 'chrome'} */
 let activeProviderId = 'gemini';
@@ -142,7 +146,9 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'JOB_COMPLETE') {
     hideProgress();
     clearStatus();
-    renderResult(message.doc, message.summary);
+    renderResult(message.doc, message.summary, {
+      priorityGrounding: message.priorityGrounding,
+    });
     setRunning(false);
   }
 
@@ -185,6 +191,7 @@ function showSetupScreen() {
   hideSummary();
   metaEl.hidden = true;
   clearStatus();
+  applyI18n();
 }
 
 function hideSetupScreen() {
@@ -394,6 +401,7 @@ async function init() {
 
   const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
   hasApiKey = Boolean(settings?.hasApiKey);
+  isFirefoxBrowser = Boolean(settings?.isFirefox);
   activeProviderId = settings?.settings?.providerId ?? 'gemini';
   const lang = settings?.settings?.language ?? 'en';
   setLanguage(lang);
@@ -420,7 +428,10 @@ async function init() {
     tabId: currentTabId,
   });
   if (cached) {
-    renderResult(cached.doc, cached.summary, { fromCache: cached.fromCache });
+    renderResult(cached.doc, cached.summary, {
+      fromCache: cached.fromCache,
+      priorityGrounding: cached.priorityGrounding,
+    });
   }
 }
 
@@ -492,7 +503,10 @@ async function startSummarize(force = false) {
 
     if (result?.doc && result?.summary) {
       hideProgress();
-      renderResult(result.doc, result.summary, { fromCache: result.fromCache });
+      renderResult(result.doc, result.summary, {
+        fromCache: result.fromCache,
+        priorityGrounding: result.priorityGrounding,
+      });
       setRunning(false);
     }
   } catch (err) {
@@ -576,6 +590,13 @@ function applyI18n() {
   if (optionsLink) {
     optionsLink.textContent = t('setup_more_options');
   }
+  if (setupPrivacyNote) {
+    const showPrivacyNote = !isFirefoxBrowser && providerNeedsApiKey();
+    setupPrivacyNote.hidden = !showPrivacyNote;
+    if (showPrivacyNote) {
+      setupPrivacyNote.textContent = t('setup_privacy_note');
+    }
+  }
 }
 
 /** @param {{ phase: string; current: number; total: number }} progress */
@@ -586,6 +607,7 @@ function showProgress(progress) {
 
   const labels = {
     detecting: t('progress_detecting'),
+    extracting: t('progress_extracting'),
     fetching: t('progress_fetching'),
     summarizing: t('progress_summarizing'),
     chunking: t('progress_chunking', { current: progress.current, total: progress.total }),
@@ -845,7 +867,7 @@ function renderResult(doc, summary, options = {}) {
   `;
   metaEl.hidden = false;
 
-  const prioritiesHtml = renderPriorities(normalized.priorities);
+  const prioritiesHtml = renderPriorities(normalized.priorities, options.priorityGrounding);
   const riskMeterHtml = renderRiskMeter(normalized.riskScore);
   const severityBarHtml = renderSeverityBar(normalized.riskScore);
   const riskBreakdownHtml = renderRiskBreakdown(normalized.riskScore);
@@ -877,17 +899,24 @@ function renderResult(doc, summary, options = {}) {
   summaryEl.hidden = false;
 }
 
-/** @param {import('../lib/types.js').PriorityConcerns} priorities */
-function renderPriorities(priorities) {
+/** @param {import('../lib/types.js').PriorityConcerns} priorities @param {Record<string, boolean> | undefined} grounding */
+function renderPriorities(priorities, grounding = {}) {
   const cards = PRIORITY_KEYS.map((key) => {
     const item = priorities[key] ?? { status: 'unclear', answer: '' };
     const status = ['yes', 'no', 'unclear'].includes(item.status) ? item.status : 'unclear';
     const statusLabel = t(`status_${status}`);
+    const isGrounded = grounding[key] === true && status !== 'unclear';
+    const verifyBadge = isGrounded
+      ? `<span class="priority-verified" title="${escapeHtml(t('priority_verified'))}">✓</span>`
+      : '';
     return `
       <div class="priority-card priority-${status}">
         <div class="priority-head">
           <span class="priority-question">${escapeHtml(t(`priority_${key}`))}</span>
-          <span class="priority-chip chip-${status}">${escapeHtml(statusLabel)}</span>
+          <span class="priority-badges">
+            ${verifyBadge}
+            <span class="priority-chip chip-${status}">${escapeHtml(statusLabel)}</span>
+          </span>
         </div>
         ${item.answer ? `<p class="priority-answer">${escapeHtml(item.answer)}</p>` : ''}
       </div>

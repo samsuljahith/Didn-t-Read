@@ -83,4 +83,18 @@ describe('groundSummary()', () => {
     assert.equal(result.priorities.sellsOrSharesData.status, 'unclear');
     assert.match(result.priorities.sellsOrSharesData.answer, /Could not verify/i);
   });
+
+  it('filters ungrounded list bullets from analysis sections', () => {
+    const withBullets = {
+      ...baseSummary,
+      keyPoints: [
+        'We may sell personal data to advertising partners.',
+        'Invented clause about teleportation fees.',
+      ],
+      riskyClauses: ['Refunds are available within 14 days of purchase.', 'Fake Mars clause.'],
+    };
+    const result = groundSummary(withBullets, source);
+    assert.equal(result.keyPoints.length, 1);
+    assert.equal(result.riskyClauses.length, 1);
+  });
 });

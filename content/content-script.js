@@ -74,6 +74,11 @@ async function extractPolicyFromUrl(url, meta) {
 
 async function detectAndExtract() {
   const scoring = scoreLegalDoc();
+
+  if (typeof isLargeDocument === 'function' && isLargeDocument(document)) {
+    chrome.runtime.sendMessage({ type: 'EXTRACTION_PROGRESS' }).catch(() => {});
+  }
+
   const extracted = await extractDocumentFromDocAsync(document);
 
   const isHub =

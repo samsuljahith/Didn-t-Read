@@ -1,0 +1,69 @@
+{
+  "manifest_version": 2,
+  "name": "Didn't Read",
+  "version": "0.3.2",
+  "description": "Summarize legal documents (T&C, privacy, cookie policies) on the current page.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "didnt-read@samueljahith.dev",
+      "strict_min_version": "115.0"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_action": {
+    "default_title": "Didn't Read",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "sidebar_action": {
+    "default_title": "Didn't Read",
+    "default_panel": "sidepanel/sidepanel.html",
+    "default_icon": "icons/icon48.png"
+  },
+  "background": {
+    "scripts": [
+      "lib/browser-compat.js",
+      "lib/llm/provider-config.js",
+      "lib/consent.js",
+      "lib/storage.js",
+      "lib/messaging.js",
+      "lib/extract-html.js",
+      "lib/fetch-policy.js",
+      "lib/analysis-cache.js",
+      "lib/llm/response-schema.js",
+      "lib/llm/validate-summary.js",
+      "lib/grounding.js",
+      "lib/llm/providers/gemini.js",
+      "lib/llm/providers/openai.js",
+      "lib/llm/providers/anthropic.js",
+      "lib/llm/providers/grok.js",
+      "lib/llm/router.js",
+      "lib/llm/prompts.js",
+      "lib/llm/chunker.js",
+      "lib/llm/map-reduce.js",
+      "lib/analyze.js",
+      "background/background-main.js"
+    ],
+    "persistent": false
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "permissions": ["activeTab", "storage"],
+  "optional_permissions": [
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://api.x.ai/*"
+  ]
+}

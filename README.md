@@ -34,12 +34,12 @@ Didn't Read takes a different path:
 | Outdated summaries | Volunteer DB lags policy updates | Live analysis | **Live analysis** + Re-analyze |
 | Niche / new sites | “No Class Yet” | Works if page is readable | **Works on any detectable policy page** |
 | Opaque or harsh grading | Subjective A–E grade | Single AI grade | **Explainable score + clause quotes** |
-| AI hallucination | N/A (human DB) | Can misread jargon | **Mitigated** — grounding check + “View clause” |
-| Browser lag on huge policies | N/A | Can stutter | **Partially mitigated** — idle-yield extraction + SW-side LLM |
-| Chromium-only | Yes | Yes | Yes (not solved) |
-| Privacy / reads your pages | Lower (pre-reviewed DB) | Cloud AI irony | **Consent gate** + optional **on-device Chrome AI** |
+| AI hallucination | N/A (human DB) | Can misread jargon | **Mitigated** — fuzzy grounding on priorities, risk factors, and bullets; verified badge when matched |
+| Browser lag on huge policies | N/A | Can stutter | **Mitigated** — idle-yield extraction + early “Extracting…” progress |
+| Chromium-only | Yes | Yes | **Firefox MV2 port** (cloud providers; no on-device AI) |
+| Privacy / reads your pages | Lower (pre-reviewed DB) | Cloud AI irony | **Consent gate** + optional **Chrome on-device AI** (Chromium only) |
 
-**What we don't claim:** lawyer-grade accuracy, zero AI mistakes, zero browser impact on enormous policies, or Firefox/Safari support.
+**What we don't claim:** lawyer-grade accuracy, zero AI mistakes, zero browser impact on enormous policies, or Safari support.
 
 ---
 
@@ -48,7 +48,7 @@ Didn't Read takes a different path:
 - **Automatic detection** of Terms & Conditions, Privacy Policies, and Cookie Policies — whether the page *is* a policy or just links to one. Non-legal pages (blogs, product listings, etc.) are blocked before any text is sent for analysis.
 - **Clean extraction** of the legal text, stripping navigation, footers, and ads. Large pages use idle-yielding extraction to reduce tab jank.
 - **Your choice of AI provider** — **Chrome on-device AI** (no API key, local processing), Google Gemini, OpenAI, Anthropic Claude, or xAI Grok.
-- **Grounding guard** — priority answers and risk clauses are checked against the extracted page text; unverified claims are downgraded to “unclear.”
+- **Grounding guard** — priority answers, risk clauses, and list bullets are fuzzy-matched against extracted page text; unverified claims are downgraded or dropped. Verified priority answers show a checkmark.
 - **Top-priority answers first** — six plain-language cards (yes / no / unclear) for data selling, advertising, third-party sharing, refunds, cancellation, and payment terms.
 - **Explainable, clause-grounded risk score**: 0–100 with a visual meter, severity breakdown, and expandable factors — each with verbatim clause text.
 - **Multi-language UI and output** — English, Chinese, Malay, and Tamil (Singapore-focused).
@@ -60,13 +60,24 @@ Didn't Read takes a different path:
 
 ## Install (unpacked)
 
+### Chromium (Chrome, Edge, Brave, Arc)
+
 1. Download or clone this repository.
-2. Open `chrome://extensions` in Chrome (or any Chromium browser — Edge, Brave, Arc).
+2. Open `chrome://extensions` in Chrome (or any Chromium browser).
 3. Enable **Developer mode** (top-right toggle).
 4. Click **Load unpacked** and select the extension folder.
 5. The Didn't Read icon appears in your toolbar.
 
 **Chrome on-device AI** requires Chrome **131+** with Gemini Nano available (`chrome://on-device-internals` or `chrome://flags`).
+
+### Firefox
+
+1. Clone this repository.
+2. Run `npm run manifest:firefox` to swap in the Firefox Manifest V2 build (uses sidebar instead of side panel; cloud providers only).
+3. Open `about:debugging` → **This Firefox** → **Load Temporary Add-on…** and select `manifest.json`.
+4. Click the toolbar icon to open the sidebar.
+
+Restore the Chromium manifest with `npm run manifest:chrome` before loading in Chrome again.
 
 ## Setup
 
@@ -109,10 +120,10 @@ This is **not** legal advice, and cloud AI mode is **not** fully local processin
 Named honestly, because a tool you can trust is one that tells you its edges:
 
 - **Not legal advice.** AI can misread complex legal language. Grounding checks and verbatim clauses help you verify claims — they do not guarantee correctness.
-- **Performance on large documents.** Extraction is improved with idle-yielding but very large pages may still briefly lag. The AI call runs in the background service worker.
+- **Performance on large documents.** Extraction uses idle-yielding with an early progress indicator; very large pages may still briefly lag. The AI call runs in the background.
 - **Cached revisits still re-read the page.** Only the AI call is skipped on cache hit, not extraction.
-- **Chromium only.** Not built for Firefox or Safari.
-- **On-device AI quality** depends on Chrome's Gemini Nano availability and may be less capable than cloud models on long documents.
+- **Firefox** uses a separate MV2 build (`manifest.firefox.json`). Chrome on-device AI is not available on Firefox.
+- **Chromium on-device AI quality** depends on Chrome's Gemini Nano availability and may be less capable than cloud models on long documents.
 - **Client-side key storage** (cloud mode). Keys are recoverable by anyone with device access.
 
 ---

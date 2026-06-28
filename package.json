@@ -1,12 +1,14 @@
 {
   "name": "didnt-read",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "Chrome extension that summarizes legal documents with an LLM",
   "type": "module",
   "scripts": {
     "test": "node --test test/**/*.test.js",
-    "lint": "node --check background/service-worker.js && node --check content/*.js && node --check lib/**/*.js && node --check lib/llm/providers/*.js && node --check offscreen/*.js && node --check sidepanel/sidepanel.js && node --check options/options.js"
+    "lint": "node --check background/service-worker.js && node --check background/background-main.js && node --check content/*.js && node --check lib/**/*.js && node --check lib/llm/providers/*.js && node --check offscreen/*.js && node --check sidepanel/sidepanel.js && node --check options/options.js",
+    "manifest:firefox": "node scripts/use-firefox-manifest.mjs",
+    "manifest:chrome": "node scripts/use-chrome-manifest.mjs"
   },
   "devDependencies": {
     "jsdom": "^26.1.0"
