@@ -9,6 +9,9 @@ const SW_SCRIPTS = [
   '../lib/analysis-cache.js',
   '../lib/llm/response-schema.js',
   '../lib/llm/validate-summary.js',
+  '../lib/grounding.js',
+  '../lib/offscreen-llm.js',
+  '../lib/llm/providers/chrome-local.js',
   '../lib/llm/providers/gemini.js',
   '../lib/llm/providers/openai.js',
   '../lib/llm/providers/anthropic.js',
@@ -155,9 +158,12 @@ async function handleSummarize(tabId, options = {}) {
     return { consentRequired: true };
   }
 
-  const apiKey = await getApiKey();
-  if (!apiKey) {
-    throw new Error('No API key configured. Open Settings to add one.');
+  const settings = await getSettings();
+  if (settings.providerId !== 'chrome') {
+    const apiKey = await getApiKey();
+    if (!apiKey) {
+      throw new Error('No API key configured. Open Settings to add one.');
+    }
   }
 
   if (activeJob?.tabId === tabId) {

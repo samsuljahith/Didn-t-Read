@@ -39,8 +39,16 @@ let hasApiKey = false;
 /** @type {boolean} */
 let notLegal = false;
 
-/** @type {'gemini' | 'openai' | 'anthropic' | 'grok'} */
+/** @type {'gemini' | 'openai' | 'anthropic' | 'grok' | 'chrome'} */
 let activeProviderId = 'gemini';
+
+function providerNeedsApiKey() {
+  return activeProviderId !== 'chrome';
+}
+
+function isReadyToSummarize() {
+  return consentGiven && !notLegal && (providerNeedsApiKey() ? hasApiKey : true);
+}
 
 /** @type {{ force: boolean } | null} */
 let pendingSummarize = null;
@@ -306,7 +314,7 @@ function setNotLegal(value) {
 }
 
 function updateActionButtons() {
-  const blocked = !consentGiven || notLegal;
+  const blocked = !isReadyToSummarize();
   summarizeBtn.disabled = blocked;
   reanalyzeBtn.disabled = blocked;
 }
@@ -363,7 +371,7 @@ async function acceptConsent() {
   pendingSummarize = null;
   if (pending) {
     await startSummarize(pending.force);
-  } else if (!hasApiKey) {
+  } else if (!hasApiKey && providerNeedsApiKey()) {
     showSetupScreen();
   }
 }
@@ -399,7 +407,7 @@ async function init() {
     return;
   }
 
-  if (!hasApiKey) {
+  if (!hasApiKey && providerNeedsApiKey()) {
     return;
   }
 
@@ -432,7 +440,7 @@ async function startSummarize(force = false) {
     return;
   }
 
-  if (!hasApiKey) {
+  if (!hasApiKey && providerNeedsApiKey()) {
     pendingSummarize = { force };
     showSetupScreen();
     return;
@@ -533,8 +541,8 @@ async function cancelSummarize() {
 
 /** @param {boolean} running */
 function setRunning(running) {
-  summarizeBtn.disabled = running || !consentGiven || notLegal;
-  reanalyzeBtn.disabled = running || !consentGiven || notLegal;
+  summarizeBtn.disabled = running || !isReadyToSummarize();
+  reanalyzeBtn.disabled = running || !isReadyToSummarize();
   cancelBtn.hidden = !running;
 }
 

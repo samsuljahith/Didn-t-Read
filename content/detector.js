@@ -97,7 +97,6 @@ function scoreLegalDoc(doc = document) {
     type,
     mode,
     needsConfirmation,
-    needsConfirmation,
     label: TYPE_LABELS[type] ?? TYPE_LABELS.unknown,
     linkedPolicies,
     documentScore,

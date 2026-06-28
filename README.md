@@ -6,7 +6,7 @@
 
 **Understand any Terms of Service, Privacy Policy, or Cookie Policy in seconds — not minutes.**
 
-Didn't Read is a Chromium browser extension that detects legal documents on the page you're viewing, analyzes them with your chosen AI provider, and presents a concise, structured summary in a side panel — including your top privacy concerns first and an explainable risk score where every point is tied to the exact clause that triggered it.
+Didn't Read is a Chromium browser extension that detects legal documents on the page you're viewing, analyzes them with your chosen AI provider (or Chrome's on-device model), and presents a concise, structured summary in a side panel — including your top privacy concerns first and an explainable risk score where every point is tied to the exact clause that triggered it.
 
 The logo is a minimalist document frame with a teal checkmark — purple (`#2E1A68`) and teal (`#1ABC9C`) signal clarity and “verified at a glance.”
 
@@ -16,29 +16,45 @@ The logo is a minimalist document frame with a teal checkmark — purple (`#2E1A
 
 Most policy-summary tools take one of two approaches, and both have a real weakness:
 
-- **Human-reviewed databases** are accurate, but summaries can be months or years out of date, and smaller or brand-new sites often have no review at all.
-- **Single-grade AI tools** give you one overall letter or number with little explanation of *why*.
+- **Human-reviewed databases** (like ToS;DR) are accurate when covered, but summaries can be months or years out of date, and smaller or brand-new sites often show “No Class Yet.”
+- **Single-grade AI tools** (like Termzy AI) give you one overall score with little explanation of *why*, and can misread complex legal language.
 
 Didn't Read takes a different path:
 
-- It analyzes the **actual policy text on the page in front of you** — so it's never stale, and it works on any site, including niche, local, and just-launched ones.
-- It answers **six questions you care about first** — data selling, advertising use, third-party sharing, refunds, cancellation, and payment terms — before anything else.
-- Every point in the risk score is **grounded in a specific clause** from the document, with the verbatim text one click away — so you can check the AI's reasoning against the source instead of trusting a black box.
+- **Live, not stale** — analyzes the **actual policy text on the page in front of you**, so it's never months behind a volunteer database.
+- **Any site, not just popular ones** — works on niche, local, and just-launched sites; no manual review coverage gap.
+- **Explainable, not a black box** — six priority answers first, then a risk score with **verbatim clauses** you can click to verify. We do **not** claim to eliminate AI errors — we make them easier to catch.
+
+---
+
+## vs ToS;DR and Termzy AI
+
+| Weakness | ToS;DR | Termzy AI | Didn't Read |
+|----------|--------|-----------|-------------|
+| Outdated summaries | Volunteer DB lags policy updates | Live analysis | **Live analysis** + Re-analyze |
+| Niche / new sites | “No Class Yet” | Works if page is readable | **Works on any detectable policy page** |
+| Opaque or harsh grading | Subjective A–E grade | Single AI grade | **Explainable score + clause quotes** |
+| AI hallucination | N/A (human DB) | Can misread jargon | **Mitigated** — grounding check + “View clause” |
+| Browser lag on huge policies | N/A | Can stutter | **Partially mitigated** — idle-yield extraction + SW-side LLM |
+| Chromium-only | Yes | Yes | Yes (not solved) |
+| Privacy / reads your pages | Lower (pre-reviewed DB) | Cloud AI irony | **Consent gate** + optional **on-device Chrome AI** |
+
+**What we don't claim:** lawyer-grade accuracy, zero AI mistakes, zero browser impact on enormous policies, or Firefox/Safari support.
 
 ---
 
 ## Features
 
 - **Automatic detection** of Terms & Conditions, Privacy Policies, and Cookie Policies — whether the page *is* a policy or just links to one. Non-legal pages (blogs, product listings, etc.) are blocked before any text is sent for analysis.
-- **Clean extraction** of the legal text, stripping navigation, footers, and ads.
-- **Your choice of AI provider** — Google Gemini, OpenAI, Anthropic Claude, or xAI Grok — with one API key stored locally at a time.
+- **Clean extraction** of the legal text, stripping navigation, footers, and ads. Large pages use idle-yielding extraction to reduce tab jank.
+- **Your choice of AI provider** — **Chrome on-device AI** (no API key, local processing), Google Gemini, OpenAI, Anthropic Claude, or xAI Grok.
+- **Grounding guard** — priority answers and risk clauses are checked against the extracted page text; unverified claims are downgraded to “unclear.”
 - **Top-priority answers first** — six plain-language cards (yes / no / unclear) for data selling, advertising, third-party sharing, refunds, cancellation, and payment terms.
-- **Explainable, clause-grounded risk score**: an overall value (0–100) and label (low / medium / high), with a visual risk meter, severity breakdown, and expandable factors — each with the verbatim clause, category, severity, and a plain-English reason.
-- **Structured summary** covering key points, risky clauses, data collection, third-party sharing, subscription terms, cancellation & refunds, user obligations, and important legal clauses.
+- **Explainable, clause-grounded risk score**: 0–100 with a visual meter, severity breakdown, and expandable factors — each with verbatim clause text.
 - **Multi-language UI and output** — English, Chinese, Malay, and Tamil (Singapore-focused).
-- **Friendly first-run setup** — a 3-step side-panel flow to get a free API key, paste it, and connect in about 30 seconds. Detection still works before setup; the prompt appears when you try to summarize.
-- **Privacy consent gate**: nothing is sent to your AI provider until you explicitly accept a clear disclosure. Consent is versioned; you can withdraw it any time from Settings.
-- **Local caching**: revisiting an already-analyzed page returns the result instantly without a new AI call. **Re-analyze** forces a fresh pass.
+- **Friendly first-run setup** — 3-step side-panel flow for cloud providers. Detection works before setup; choose **Chrome on-device AI** in Settings to skip the API key entirely.
+- **Privacy consent gate**: nothing is sent until you accept a clear disclosure. Consent is versioned; withdraw any time from Settings.
+- **Local caching**: revisiting an already-analyzed page returns instantly without a new AI call. **Re-analyze** forces a fresh pass.
 
 ---
 
@@ -50,12 +66,20 @@ Didn't Read takes a different path:
 4. Click **Load unpacked** and select the extension folder.
 5. The Didn't Read icon appears in your toolbar.
 
+**Chrome on-device AI** requires Chrome **131+** with Gemini Nano available (`chrome://on-device-internals` or `chrome://flags`).
+
 ## Setup
 
-1. Visit a page with a privacy policy or terms of service — you'll see **policy detected** in the side panel even before setup.
-2. Click **Summarize** — if you don't have a key yet, follow the 3-step setup: get a free key from your provider, paste it, and click **Connect**.
+**Option A — No API key (most private cloud-free path)**
+
+1. Open **Settings** → Provider → **Chrome on-device AI**.
+2. Visit a policy page → open the side panel → accept consent → **Summarize**.
+
+**Option B — Cloud provider (Gemini, OpenAI, Claude, Grok)**
+
+1. Visit a policy page — you'll see **policy detected** even before setup.
+2. Click **Summarize** → follow the 3-step setup: get a key, paste it, **Connect**.
 3. Accept the privacy disclosure the first time you analyze.
-4. For more control, open **Settings** (toolbar icon → Options) to switch provider, model, or language.
 
 ## Usage
 
@@ -71,11 +95,12 @@ Didn't Read takes a different path:
 
 Didn't Read is built for a privacy-conscious audience, so it's direct about what it does:
 
-- When you choose to analyze a page, **detected legal-document text from that page is sent to your chosen AI provider** for analysis. Nothing is sent until you accept the disclosure.
-- Analysis results are stored only in a **local cache on your device**. The extension adds no telemetry and no analytics.
-- Your API key is stored locally in browser storage and is sent only to the active provider when you summarize or test the connection.
+- **Chrome on-device mode:** legal text is processed locally via Chrome's built-in language model. No cloud API key; no data sent to Gemini/OpenAI/etc.
+- **Cloud provider mode:** detected legal-document text is sent to your chosen provider when you summarize. Nothing is sent until you accept the disclosure.
+- Analysis results are stored only in a **local cache on your device**. No telemetry or analytics.
+- Cloud API keys are stored locally and sent only to the active provider.
 
-If you need a tool that performs *all* processing locally with no external API, Didn't Read is not that tool — and it says so up front.
+This is **not** legal advice, and cloud AI mode is **not** fully local processing.
 
 ---
 
@@ -83,11 +108,12 @@ If you need a tool that performs *all* processing locally with no external API, 
 
 Named honestly, because a tool you can trust is one that tells you its edges:
 
-- **Not legal advice.** AI can misread complex legal language. The verbatim clauses exist so you can verify claims against the source — treat the summary as a fast starting point, not a legal opinion.
-- **Performance on large documents.** Page extraction runs on the tab's rendering thread, so a very large document may briefly lag the page. The AI call runs in the background and does not block the page.
-- **Cached revisits still re-read the page.** On a revisit, the extension re-extracts the page text before checking the cache — only the AI call is skipped, not the extraction.
-- **Chromium only.** Works in Chrome, Edge, Brave, and Arc. It is not built for Firefox or Safari.
-- **Client-side key storage.** Your key lives in the browser, which is fine for personal use — but a client-side key is extractable by anyone with device access. There is no backend proxy in this project.
+- **Not legal advice.** AI can misread complex legal language. Grounding checks and verbatim clauses help you verify claims — they do not guarantee correctness.
+- **Performance on large documents.** Extraction is improved with idle-yielding but very large pages may still briefly lag. The AI call runs in the background service worker.
+- **Cached revisits still re-read the page.** Only the AI call is skipped on cache hit, not extraction.
+- **Chromium only.** Not built for Firefox or Safari.
+- **On-device AI quality** depends on Chrome's Gemini Nano availability and may be less capable than cloud models on long documents.
+- **Client-side key storage** (cloud mode). Keys are recoverable by anyone with device access.
 
 ---
 
@@ -96,25 +122,22 @@ Named honestly, because a tool you can trust is one that tells you its edges:
 ```
 Visited page
    │
-   ├─ Content script  → scores legal doc; extracts clean text
-   │                     (hub pages fetch the linked policy instead)
+   ├─ Content script  → scores legal doc; extracts clean text (idle-yield on large pages)
    │                     non-legal pages stop here — no text sent upstream
    │
-   └─ Service worker  → checks consent → checks local cache
-                        → on cache miss, routes to active provider
-                          (Gemini / OpenAI / Anthropic / Grok)
-                        → validates & normalizes structured JSON
+   └─ Service worker  → consent → cache → LLM (on-device or cloud)
+                        → validate JSON → ground claims against source text
    │
 Side panel  → priorities → risk meter → breakdown → summary sections
-              (UI + LLM output in your chosen language)
 ```
 
-All AI work runs in the **service worker**, off the visited page's main thread. Consent is checked before any provider call, including the connection test.
+---
 
 ## Tech stack
 
-- **Manifest V3** (service worker, content script, side panel, options page)
-- **Provider-agnostic LLM layer** with structured JSON output; default models include Gemini 2.5 Flash, GPT-4o mini, Claude Sonnet, and Grok 2
+- **Manifest V3** (service worker, content script, side panel, offscreen document for on-device AI)
+- **Provider-agnostic LLM layer** with structured JSON output
+- **Grounding guard** ([`lib/grounding.js`](lib/grounding.js)) post-validates AI claims against source text
 - Vanilla JavaScript, no build step required
 
 ---

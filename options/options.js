@@ -16,6 +16,7 @@ const saveStatus = document.getElementById('save-status');
 const consentDisclosure = document.getElementById('consent-disclosure');
 const consentStatus = document.getElementById('consent-status');
 const withdrawConsentBtn = document.getElementById('withdraw-consent-btn');
+const apiKeySection = document.getElementById('api-key-section');
 
 const LLM_STORAGE_KEYS = {
   apiKey: 'llmApiKey',
@@ -39,13 +40,24 @@ clearKeyBtn.addEventListener('click', clearApiKey);
 withdrawConsentBtn.addEventListener('click', withdrawConsent);
 
 function onProviderChange() {
-  const config = getProviderConfig(providerIdSelect.value);
-  modelInput.placeholder = config.defaultModel;
-  providerUrlInput.placeholder = config.defaultBaseUrl;
-  providerHint.textContent = `${config.label} — network access is requested when you test or summarize.`;
-  providerKeyHint.textContent = `API key for ${config.label}. Only one key is stored at a time.`;
+  const providerId = providerIdSelect.value;
+  const config = getProviderConfig(providerId);
+  const isLocal = providerId === 'chrome';
 
-  if (lastProviderId && lastProviderId !== providerIdSelect.value) {
+  modelInput.placeholder = config.defaultModel;
+  providerUrlInput.placeholder = config.defaultBaseUrl || 'Not used for on-device AI';
+  providerHint.textContent = isLocal
+    ? `${config.label} — summarization runs on your device. No cloud API key or network permission needed. Requires Chrome 131+ with Gemini Nano enabled.`
+    : `${config.label} — network access is requested when you test or summarize.`;
+  providerKeyHint.textContent = isLocal
+    ? 'No API key needed for Chrome on-device AI.'
+    : `API key for ${config.label}. Only one key is stored at a time.`;
+
+  if (apiKeySection) {
+    apiKeySection.hidden = isLocal;
+  }
+
+  if (lastProviderId && lastProviderId !== providerId && !isLocal) {
     showStatus('Provider changed — you may need a new API key for this provider.', false);
   }
 }
@@ -135,19 +147,22 @@ async function testConnection() {
   }
 
   const settings = readSettings();
+  const isLocal = settings.providerId === 'chrome';
   const typedKey = apiKeyInput.value.trim();
   const stored = await chrome.storage.local.get(LLM_STORAGE_KEYS.apiKey);
   const apiKey = typedKey || stored[LLM_STORAGE_KEYS.apiKey] || '';
 
-  if (!apiKey) {
+  if (!isLocal && !apiKey) {
     showStatus('Enter or save an API key first', true);
     return;
   }
 
-  const permOk = await ensureProviderHostPermission(settings.providerId);
-  if (!permOk) {
-    showStatus('Network access to the AI provider was denied.', true);
-    return;
+  if (!isLocal) {
+    const permOk = await ensureProviderHostPermission(settings.providerId);
+    if (!permOk) {
+      showStatus('Network access to the AI provider was denied.', true);
+      return;
+    }
   }
 
   setBusy(true);

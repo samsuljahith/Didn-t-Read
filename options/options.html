@@ -11,7 +11,7 @@
     <main>
       <h1>Settings</h1>
 
-      <section class="card">
+      <section id="api-key-section" class="card">
         <h2>API key</h2>
         <p id="provider-key-hint" class="hint">Key for your active AI provider (one key at a time).</p>
 
@@ -45,6 +45,7 @@
 
         <label for="provider-id">AI provider</label>
         <select id="provider-id">
+          <option value="chrome">Chrome on-device AI (no API key)</option>
           <option value="gemini">Google Gemini</option>
           <option value="openai">ChatGPT (OpenAI)</option>
           <option value="anthropic">Claude (Anthropic)</option>

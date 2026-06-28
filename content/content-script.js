@@ -49,7 +49,7 @@ async function extractPolicyFromUrl(url, meta) {
 
   const html = await res.text();
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  const extracted = extractDocumentFromDoc(doc);
+  const extracted = await extractDocumentFromDocAsync(doc);
 
   if (extracted.wordCount < 100) {
     throw new Error('Fetched page had too little text — it may require login.');
@@ -74,7 +74,7 @@ async function extractPolicyFromUrl(url, meta) {
 
 async function detectAndExtract() {
   const scoring = scoreLegalDoc();
-  const extracted = extractDocumentFromDoc(document);
+  const extracted = await extractDocumentFromDocAsync(document);
 
   const isHub =
     scoring.mode === 'hub' ||
