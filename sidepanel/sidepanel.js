@@ -298,6 +298,12 @@ async function connectSetupKey() {
  * @param {{ detected?: boolean; notLegal?: boolean; docType?: string; confidence?: number; mode?: string; linkLabel?: string; wordCount?: number }} detection
  */
 function renderPolicyDetected(detection) {
+  if (detection?.hostAccessDenied) {
+    setNotLegal(false);
+    policyDetectedEl.hidden = true;
+    return;
+  }
+
   if (detection?.notLegal) {
     setNotLegal(true);
     policyDetectedEl.hidden = true;
@@ -351,7 +357,7 @@ function updateActionButtons() {
 
 async function detectCurrentPage() {
   if (!currentTabId) {
-    return;
+    return null;
   }
 
   try {
@@ -360,8 +366,10 @@ async function detectCurrentPage() {
       tabId: currentTabId,
     });
     renderPolicyDetected(detection);
+    return detection;
   } catch {
     policyDetectedEl.hidden = true;
+    return null;
   }
 }
 
@@ -401,7 +409,11 @@ async function onTabContextChanged(tabId, url, options = {}) {
   currentPageUrl = url;
 
   await resetPageState();
-  await detectCurrentPage();
+  const detection = await detectCurrentPage();
+
+  if (detection?.hostAccessDenied) {
+    return;
+  }
 
   if (notLegal) {
     return;
@@ -528,6 +540,14 @@ async function startSummarize(force = false) {
     return;
   }
 
+  if (currentPageUrl) {
+    const pagePermOk = await ensureOriginHostPermission(currentPageUrl);
+    if (!pagePermOk) {
+      showError(t('page_access_denied'));
+      return;
+    }
+  }
+
   await detectCurrentPage();
   if (notLegal) {
     return;
@@ -571,6 +591,13 @@ async function startSummarize(force = false) {
     if (result?.notLegal) {
       setNotLegal(true);
       hideProgress();
+      setRunning(false);
+      return;
+    }
+
+    if (result?.hostAccessDenied) {
+      hideProgress();
+      showError(t('page_access_denied'));
       setRunning(false);
       return;
     }

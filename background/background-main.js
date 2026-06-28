@@ -288,6 +288,9 @@ async function handleSummarize(tabId, options = {}) {
         },
       };
     }
+    if (err?.code === 'HOST_ACCESS_DENIED') {
+      return { hostAccessDenied: true };
+    }
     throw err;
   } finally {
     if (activeJob?.tabId === tabId) {
@@ -298,8 +301,24 @@ async function handleSummarize(tabId, options = {}) {
 
 /** @param {number} tabId */
 async function handleDetectTab(tabId) {
-  await injectContentScripts(tabId);
-  const response = await chrome.tabs.sendMessage(tabId, { type: 'DETECT_AND_EXTRACT' });
+  try {
+    await injectContentScripts(tabId);
+  } catch (err) {
+    if (err?.code === 'HOST_ACCESS_DENIED') {
+      return { detected: false, hostAccessDenied: true };
+    }
+    throw err;
+  }
+
+  let response;
+  try {
+    response = await chrome.tabs.sendMessage(tabId, { type: 'DETECT_AND_EXTRACT' });
+  } catch (err) {
+    if (isHostAccessError(err)) {
+      return { detected: false, hostAccessDenied: true };
+    }
+    throw err;
+  }
 
   if (response?.error) {
     return { detected: false, error: response.error };
@@ -342,10 +361,29 @@ async function handleDetectTab(tabId) {
 
 /** @param {number} tabId */
 async function extractFromTab(tabId) {
-  await injectContentScripts(tabId);
+  try {
+    await injectContentScripts(tabId);
+  } catch (err) {
+    if (err?.code === 'HOST_ACCESS_DENIED') {
+      const denied = new Error('Allow access to this site to read the page.');
+      denied.code = 'HOST_ACCESS_DENIED';
+      throw denied;
+    }
+    throw err;
+  }
   broadcastProgress(tabId, { phase: 'extracting', current: 0, total: 1 });
 
-  const response = await chrome.tabs.sendMessage(tabId, { type: 'DETECT_AND_EXTRACT' });
+  let response;
+  try {
+    response = await chrome.tabs.sendMessage(tabId, { type: 'DETECT_AND_EXTRACT' });
+  } catch (err) {
+    if (isHostAccessError(err)) {
+      const denied = new Error('Allow access to this site to read the page.');
+      denied.code = 'HOST_ACCESS_DENIED';
+      throw denied;
+    }
+    throw err;
+  }
   if (response?.error) {
     throw new Error(response.error);
   }
@@ -392,6 +430,31 @@ async function extractFromTab(tabId) {
   return response;
 }
 
+/**
+ * @param {unknown} err
+ */
+function isHostAccessError(err) {
+  const msg = String(/** @type {{ message?: string }} */ (err)?.message ?? err);
+  return (
+    msg.includes('Cannot access contents') ||
+    msg.includes('Extension manifest must request permission') ||
+    msg.includes('host permission') ||
+    msg.includes('Receiving end does not exist')
+  );
+}
+
+/**
+ * @param {unknown} err
+ */
+function asHostAccessError(err) {
+  if (isHostAccessError(err)) {
+    const denied = new Error('Host permission required to read this page.');
+    denied.code = 'HOST_ACCESS_DENIED';
+    return denied;
+  }
+  return err;
+}
+
 /** @param {number} tabId */
 async function injectContentScripts(tabId) {
   if (isFirefox) {
@@ -403,29 +466,40 @@ async function injectContentScripts(tabId) {
       if (injected) {
         return;
       }
-    } catch {
-      // continue to inject
+    } catch (err) {
+      throw asHostAccessError(err);
     }
 
     for (const file of CONTENT_SCRIPTS) {
-      await extApi.tabs.executeScript(tabId, { file, runAt: 'document_idle' });
+      try {
+        await extApi.tabs.executeScript(tabId, { file, runAt: 'document_idle' });
+      } catch (err) {
+        throw asHostAccessError(err);
+      }
     }
     return;
   }
 
-  const [result] = await chrome.scripting
-    .executeScript({
+  let probe;
+  try {
+    [probe] = await chrome.scripting.executeScript({
       target: { tabId },
       func: () => Boolean(globalThis.__didntReadInjected),
-    })
-    .catch(() => [null]);
+    });
+  } catch (err) {
+    throw asHostAccessError(err);
+  }
 
-  if (result?.result) {
+  if (probe?.result) {
     return;
   }
 
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    files: CONTENT_SCRIPTS,
-  });
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: CONTENT_SCRIPTS,
+    });
+  } catch (err) {
+    throw asHostAccessError(err);
+  }
 }
