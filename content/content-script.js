@@ -105,6 +105,17 @@ async function detectAndExtract() {
     throw new Error('No readable text found on this page.');
   }
 
+  if (!scoring.isLegal) {
+    return {
+      isLegal: false,
+      blockReason: scoring.blockReason ?? 'not_a_legal_page',
+      docType: scoring.type,
+      confidence: scoring.confidence,
+      mode: scoring.mode,
+      error: 'This does not appear to be a legal agreement page.',
+    };
+  }
+
   return {
     needsFetch: false,
     docType: scoring.type,

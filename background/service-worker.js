@@ -1,14 +1,19 @@
 importScripts(
   '../lib/types.js',
+  '../lib/llm/provider-config.js',
   '../lib/consent.js',
   '../lib/storage.js',
   '../lib/messaging.js',
   '../lib/extract-html.js',
   '../lib/fetch-policy.js',
   '../lib/analysis-cache.js',
-  '../lib/llm/gemini-schema.js',
+  '../lib/llm/response-schema.js',
   '../lib/llm/validate-summary.js',
-  '../lib/llm/gemini-client.js',
+  '../lib/llm/providers/gemini.js',
+  '../lib/llm/providers/openai.js',
+  '../lib/llm/providers/anthropic.js',
+  '../lib/llm/providers/grok.js',
+  '../lib/llm/router.js',
   '../lib/llm/prompts.js',
   '../lib/llm/chunker.js',
   '../lib/llm/map-reduce.js',
@@ -75,6 +80,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .then(() =>
         chrome.storage.local.set({ setupComplete: true }).then(() => sendResponse({ ok: true })),
       )
+      .catch((err) => sendResponse({ error: err.message }));
+    return true;
+  }
+
+  if (message.type === 'SAVE_SETTINGS') {
+    setSettings(message.settings)
+      .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ error: err.message }));
     return true;
   }
@@ -155,6 +167,16 @@ async function handleSummarize(tabId, options = {}) {
   try {
     broadcastProgress(tabId, { phase: 'detecting', current: 0, total: 1 });
     const doc = await extractFromTab(tabId);
+
+    if (doc.notLegal) {
+      return {
+        notLegal: true,
+        reason: doc.reason,
+        docType: doc.docType,
+        confidence: doc.confidence ?? 0,
+      };
+    }
+
     const settings = await getSettings();
     const textHash = await hashText(doc.text);
 
@@ -221,6 +243,16 @@ async function handleDetectTab(tabId) {
     return { detected: false, error: response.error };
   }
 
+  if (response.isLegal === false) {
+    return {
+      detected: false,
+      notLegal: true,
+      reason: response.blockReason ?? 'not_a_legal_page',
+      docType: response.docType,
+      confidence: response.confidence ?? 0,
+    };
+  }
+
   if (response.needsFetch && response.policyUrl) {
     return {
       detected: true,
@@ -253,6 +285,16 @@ async function extractFromTab(tabId) {
   const response = await chrome.tabs.sendMessage(tabId, { type: 'DETECT_AND_EXTRACT' });
   if (response?.error) {
     throw new Error(response.error);
+  }
+
+  if (response.isLegal === false) {
+    const reason = response.blockReason ?? 'not_a_legal_page';
+    return {
+      notLegal: true,
+      reason,
+      docType: response.docType,
+      confidence: response.confidence ?? 0,
+    };
   }
 
   if (response.needsFetch && response.policyUrl) {

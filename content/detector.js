@@ -78,15 +78,25 @@ function scoreLegalDoc(doc = document) {
     mode = 'document';
   }
 
-  const isLegal = mode !== 'unknown' || linkedPolicies.length >= 1 || type !== 'unknown';
   const confidence = Math.min(Math.max(documentScore, hubScore, typeScores[type] ?? 0), 0.98);
   const needsConfirmation = mode === 'document' && confidence < 0.55;
 
+  const isHubWithPolicy = mode === 'hub' && linkedPolicies.length >= 1;
+  const isConfidentDoc = mode !== 'unknown' && confidence >= 0.55;
+  const isLegal = isConfidentDoc || isHubWithPolicy;
+
+  let blockReason = null;
+  if (!isLegal) {
+    blockReason = mode === 'unknown' ? 'not_a_legal_page' : 'low_confidence';
+  }
+
   return {
     isLegal,
+    blockReason,
     confidence: confidence || 0.2,
     type,
     mode,
+    needsConfirmation,
     needsConfirmation,
     label: TYPE_LABELS[type] ?? TYPE_LABELS.unknown,
     linkedPolicies,

@@ -12,6 +12,7 @@
 
       <section class="card">
         <h2>API key</h2>
+        <p id="provider-key-hint" class="hint">Key for your active AI provider (one key at a time).</p>
 
         <div id="key-saved" class="key-saved" hidden>
           <span class="key-mask" aria-label="API key saved">••••••••••••</span>
@@ -41,16 +42,35 @@
       <form id="settings-form" class="card">
         <h2>Provider</h2>
 
-        <label for="provider-url">Provider URL</label>
-        <input
-          id="provider-url"
-          type="url"
-          placeholder="https://generativelanguage.googleapis.com/v1beta"
-        />
-        <p class="hint">Google Gemini generateContent endpoint. Network access is requested when you test.</p>
+        <label for="provider-id">AI provider</label>
+        <select id="provider-id">
+          <option value="gemini">Google Gemini</option>
+          <option value="openai">ChatGPT (OpenAI)</option>
+          <option value="anthropic">Claude (Anthropic)</option>
+          <option value="grok">Grok (xAI)</option>
+        </select>
+        <p class="hint" id="provider-hint">Network access is requested when you test or summarize.</p>
+
+        <label for="language">Output language</label>
+        <select id="language">
+          <option value="en">English</option>
+          <option value="zh">中文 (Chinese)</option>
+          <option value="ms">Bahasa Melayu (Malay)</option>
+          <option value="ta">தமிழ் (Tamil)</option>
+        </select>
 
         <label for="model">Model</label>
         <input id="model" type="text" placeholder="gemini-2.5-flash" />
+
+        <details class="advanced-settings">
+          <summary>Advanced</summary>
+          <label for="provider-url">Provider URL override</label>
+          <input
+            id="provider-url"
+            type="url"
+            placeholder="https://generativelanguage.googleapis.com/v1beta"
+          />
+        </details>
 
         <label for="max-chunk-tokens">Max chunk tokens (long docs)</label>
         <input id="max-chunk-tokens" type="number" min="500" max="8000" step="100" />
@@ -77,6 +97,7 @@
       <p id="save-status" class="status" role="status" hidden></p>
     </main>
 
+    <script src="../lib/llm/provider-config.js"></script>
     <script src="../lib/consent.js"></script>
     <script src="../lib/permissions.js"></script>
     <script src="options.js"></script>

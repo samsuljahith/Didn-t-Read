@@ -52,6 +52,7 @@ describe('scoreLegalDoc()', () => {
     assert.equal(score.type, 'unknown');
     assert.equal(score.mode, 'unknown');
     assert.equal(score.isLegal, false);
+    assert.equal(score.blockReason, 'not_a_legal_page');
     assert.ok(score.linkedPolicies.length === 0);
   });
 
@@ -62,6 +63,7 @@ describe('scoreLegalDoc()', () => {
     assert.equal(score.type, 'unknown');
     assert.equal(score.mode, 'unknown');
     assert.equal(score.isLegal, false);
+    assert.equal(score.blockReason, 'not_a_legal_page');
     assert.ok(score.legalDensity < 1);
   });
 

@@ -21,6 +21,11 @@ const summaryEl = document.getElementById('summary');
 const progressEl = document.getElementById('progress');
 const progressFill = document.getElementById('progress-fill');
 const progressLabel = document.getElementById('progress-label');
+const languageSelect = document.getElementById('language-select');
+const notLegalScreen = document.getElementById('not-legal-screen');
+const notLegalTitle = document.getElementById('not-legal-title');
+const notLegalHint = document.getElementById('not-legal-hint');
+const taglineEl = document.getElementById('tagline');
 
 /** @type {number | null} */
 let currentTabId = null;
@@ -31,27 +36,24 @@ let consentGiven = false;
 /** @type {boolean} */
 let hasApiKey = false;
 
+/** @type {boolean} */
+let notLegal = false;
+
+/** @type {'gemini' | 'openai' | 'anthropic' | 'grok'} */
+let activeProviderId = 'gemini';
+
 /** @type {{ force: boolean } | null} */
 let pendingSummarize = null;
 
-const DOC_TYPE_LABELS = {
-  privacy: 'Privacy Policy',
-  terms: 'Terms of Service',
-  cookies: 'Cookie Policy',
-  unknown: 'legal document',
-};
-
-const GEMINI_KEY_URL = 'https://aistudio.google.com/apikey';
-
 const ANALYSIS_SECTIONS = [
-  { key: 'keyPoints', title: 'Key points', defaultOpen: true },
-  { key: 'riskyClauses', title: 'Risky clauses', risk: true },
-  { key: 'dataCollection', title: 'Data collection' },
-  { key: 'thirdPartySharing', title: 'Third-party sharing' },
-  { key: 'subscriptionTerms', title: 'Subscription terms' },
-  { key: 'cancellationRefund', title: 'Cancellation & refunds' },
-  { key: 'userObligations', title: 'Your obligations' },
-  { key: 'legalClauses', title: 'Legal clauses' },
+  { key: 'keyPoints', titleKey: 'section_keyPoints', defaultOpen: true },
+  { key: 'riskyClauses', titleKey: 'section_riskyClauses', risk: true },
+  { key: 'dataCollection', titleKey: 'section_dataCollection' },
+  { key: 'thirdPartySharing', titleKey: 'section_thirdPartySharing' },
+  { key: 'subscriptionTerms', titleKey: 'section_subscriptionTerms' },
+  { key: 'cancellationRefund', titleKey: 'section_cancellationRefund' },
+  { key: 'userObligations', titleKey: 'section_userObligations' },
+  { key: 'legalClauses', titleKey: 'section_legalClauses' },
 ];
 
 optionsLink?.addEventListener('click', (e) => {
@@ -63,11 +65,22 @@ settingsBtn.addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
 });
 
+languageSelect.addEventListener('change', async () => {
+  const lang = /** @type {'en' | 'zh' | 'ms' | 'ta'} */ (languageSelect.value);
+  setLanguage(lang);
+  applyI18n();
+  const { settings } = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+  await chrome.runtime.sendMessage({
+    type: 'SAVE_SETTINGS',
+    settings: { ...settings, language: lang },
+  });
+});
+
 consentAcceptBtn.addEventListener('click', acceptConsent);
 consentDeclineBtn.addEventListener('click', declineConsent);
 
 getKeyBtn.addEventListener('click', () => {
-  chrome.tabs.create({ url: GEMINI_KEY_URL });
+  chrome.tabs.create({ url: getProviderConfig(activeProviderId).keyUrl });
 });
 connectBtn.addEventListener('click', connectSetupKey);
 
@@ -86,6 +99,17 @@ chrome.storage.onChanged.addListener((changes, area) => {
     hasApiKey = Boolean(changes.llmApiKey.newValue);
     if (hasApiKey) {
       hideSetupScreen();
+    }
+  }
+  if (changes.llmSettings?.newValue) {
+    const s = changes.llmSettings.newValue;
+    if (s.providerId) {
+      activeProviderId = s.providerId;
+    }
+    if (s.language) {
+      setLanguage(s.language);
+      languageSelect.value = s.language;
+      applyI18n();
     }
   }
 });
@@ -134,15 +158,14 @@ function setConsentUi(given) {
   consentGiven = given;
   consentScreen.hidden = given;
   consentDeclinedEl.hidden = given || !consentDeclinedEl.dataset.declined;
-  summarizeBtn.disabled = !given;
-  reanalyzeBtn.disabled = !given;
-  analysisActions.hidden = false;
+  analysisActions.hidden = notLegal ? true : false;
 
   if (!given) {
     hideSummary();
     metaEl.hidden = true;
     consentScreen.hidden = false;
   }
+  updateActionButtons();
 }
 
 function showSetupScreen() {
@@ -203,10 +226,10 @@ async function connectSetupKey() {
   connectBtn.disabled = true;
   showSetupResult('Checking your connection…', 'pending');
 
-  const geminiOk = await ensureGeminiHostPermission();
-  if (!geminiOk) {
+  const permOk = await ensureProviderHostPermission(activeProviderId);
+  if (!permOk) {
     connectBtn.disabled = false;
-    showSetupResult('Connection was blocked. Allow access when Chrome asks.', 'error');
+    showSetupResult(t('permission_denied'), 'error');
     return;
   }
 
@@ -238,23 +261,54 @@ async function connectSetupKey() {
 }
 
 /**
- * @param {{ detected: boolean; docType?: string; confidence?: number; mode?: string; linkLabel?: string; wordCount?: number }} detection
+ * @param {{ detected?: boolean; notLegal?: boolean; docType?: string; confidence?: number; mode?: string; linkLabel?: string; wordCount?: number }} detection
  */
 function renderPolicyDetected(detection) {
-  if (!detection?.detected) {
+  if (detection?.notLegal) {
+    setNotLegal(true);
     policyDetectedEl.hidden = true;
     return;
   }
 
-  const label = DOC_TYPE_LABELS[detection.docType] ?? DOC_TYPE_LABELS.unknown;
+  if (!detection?.detected) {
+    policyDetectedEl.hidden = true;
+    setNotLegal(false);
+    return;
+  }
+
+  setNotLegal(false);
+  const label = docTypeLabel(detection.docType ?? 'unknown');
   const confidence = Math.round((detection.confidence ?? 0) * 100);
 
   if (detection.mode === 'hub') {
-    policyDetectedEl.textContent = `Policy detected — this page links to a ${label.toLowerCase()}.`;
+    policyDetectedEl.textContent = t('policy_detected_hub', { label: label.toLowerCase() });
   } else {
-    policyDetectedEl.textContent = `Policy detected — ${label} on this page (${confidence}% match).`;
+    policyDetectedEl.textContent = t('policy_detected_doc', { label, confidence });
   }
   policyDetectedEl.hidden = false;
+}
+
+/** @param {boolean} value */
+function setNotLegal(value) {
+  notLegal = value;
+  notLegalScreen.hidden = !value;
+  if (value) {
+    notLegalTitle.textContent = t('not_legal_title');
+    notLegalHint.textContent = t('not_legal_hint');
+  }
+  analysisActions.hidden = value;
+  if (value) {
+    hideSummary();
+    metaEl.hidden = true;
+    policyDetectedEl.hidden = true;
+  }
+  updateActionButtons();
+}
+
+function updateActionButtons() {
+  const blocked = !consentGiven || notLegal;
+  summarizeBtn.disabled = blocked;
+  reanalyzeBtn.disabled = blocked;
 }
 
 async function detectCurrentPage() {
@@ -294,9 +348,9 @@ function declineConsent() {
 }
 
 async function acceptConsent() {
-  const geminiOk = await ensureGeminiHostPermission();
-  if (!geminiOk) {
-    showError('Network access to Gemini was denied. Allow it to analyze pages.');
+  const permOk = await ensureProviderHostPermission(activeProviderId);
+  if (!permOk) {
+    showError(t('permission_denied'));
     return;
   }
 
@@ -332,15 +386,24 @@ async function init() {
 
   const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
   hasApiKey = Boolean(settings?.hasApiKey);
+  activeProviderId = settings?.settings?.providerId ?? 'gemini';
+  const lang = settings?.settings?.language ?? 'en';
+  setLanguage(lang);
+  languageSelect.value = lang;
+  applyI18n();
   setConsentUi(Boolean(settings?.consentGiven));
 
-  detectCurrentPage();
+  await detectCurrentPage();
 
   if (!settings?.consentGiven || !currentTabId) {
     return;
   }
 
   if (!hasApiKey) {
+    return;
+  }
+
+  if (notLegal) {
     return;
   }
 
@@ -355,7 +418,11 @@ async function init() {
 
 async function startSummarize(force = false) {
   if (!currentTabId) {
-    showError('No active tab found');
+    showError(t('no_active_tab'));
+    return;
+  }
+
+  if (notLegal) {
     return;
   }
 
@@ -371,16 +438,16 @@ async function startSummarize(force = false) {
     return;
   }
 
-  const geminiOk = await ensureGeminiHostPermission();
-  if (!geminiOk) {
-    showError('Network access to Gemini was denied. Allow it to analyze pages.');
+  const permOk = await ensureProviderHostPermission(activeProviderId);
+  if (!permOk) {
+    showError(t('permission_denied'));
     return;
   }
 
   setRunning(true);
   metaEl.hidden = true;
   clearStatus();
-  showLoadingState(force ? 'Re-analyzing (cache bypassed)…' : undefined);
+  showLoadingState(force ? t('reanalyzing') : undefined);
   showProgress({ phase: 'detecting', current: 0, total: 1 });
 
   try {
@@ -392,6 +459,13 @@ async function startSummarize(force = false) {
 
     if (result?.error) {
       throw new Error(result.error);
+    }
+
+    if (result?.notLegal) {
+      setNotLegal(true);
+      hideProgress();
+      setRunning(false);
+      return;
     }
 
     if (result?.consentRequired) {
@@ -459,9 +533,41 @@ async function cancelSummarize() {
 
 /** @param {boolean} running */
 function setRunning(running) {
-  summarizeBtn.disabled = running;
-  reanalyzeBtn.disabled = running;
+  summarizeBtn.disabled = running || !consentGiven || notLegal;
+  reanalyzeBtn.disabled = running || !consentGiven || notLegal;
   cancelBtn.hidden = !running;
+}
+
+function applyI18n() {
+  taglineEl.textContent = t('tagline');
+  settingsBtn.textContent = t('settings');
+  settingsBtn.title = t('settings');
+  summarizeBtn.textContent = t('summarize_btn');
+  reanalyzeBtn.textContent = t('reanalyze_btn');
+  cancelBtn.textContent = t('cancel_btn');
+  notLegalTitle.textContent = t('not_legal_title');
+  notLegalHint.textContent = t('not_legal_hint');
+  document.getElementById('language-label').textContent = t('language_label');
+  const consentTitle = consentScreen.querySelector('h2');
+  if (consentTitle) {
+    consentTitle.textContent = t('consent_title');
+  }
+  consentAcceptBtn.textContent = t('consent_accept');
+  consentDeclineBtn.textContent = t('consent_decline');
+  consentDeclinedEl.textContent = t('consent_declined');
+  const setupTitle = setupScreen.querySelector('h2');
+  if (setupTitle) {
+    setupTitle.textContent = t('setup_title');
+  }
+  const setupLead = setupScreen.querySelector('.setup-lead');
+  if (setupLead) {
+    setupLead.textContent = t('setup_lead');
+  }
+  getKeyBtn.textContent = t('setup_get_key');
+  connectBtn.textContent = t('setup_step3_connect');
+  if (optionsLink) {
+    optionsLink.textContent = t('setup_more_options');
+  }
 }
 
 /** @param {{ phase: string; current: number; total: number }} progress */
@@ -471,13 +577,13 @@ function showProgress(progress) {
   progressFill.style.width = `${pct}%`;
 
   const labels = {
-    detecting: 'Detecting legal document…',
-    fetching: 'Fetching linked policy…',
-    summarizing: 'Analyzing document…',
-    chunking: `Analyzing section ${progress.current} of ${progress.total}…`,
-    reducing: 'Combining results…',
+    detecting: t('progress_detecting'),
+    fetching: t('progress_fetching'),
+    summarizing: t('progress_summarizing'),
+    chunking: t('progress_chunking', { current: progress.current, total: progress.total }),
+    reducing: t('progress_reducing'),
   };
-  progressLabel.textContent = labels[progress.phase] ?? 'Working…';
+  progressLabel.textContent = labels[progress.phase] ?? t('progress_working');
 }
 
 function hideProgress() {
@@ -586,6 +692,7 @@ function normalizeSummary(summary) {
   }
 
   return {
+    priorities: normalizePriorities(summary.priorities),
     plainSummary: String(summary.plainSummary ?? summary.tldr ?? ''),
     riskScore: { value, label, factors },
     keyPoints: /** @type {string[]} */ (summary.keyPoints ?? []),
@@ -608,6 +715,36 @@ function normalizeSummary(summary) {
     ),
     confidence: summary.confidence,
   };
+}
+
+/** @param {unknown} raw */
+function normalizePriorities(raw) {
+  /** @type {import('../lib/types.js').PriorityConcerns} */
+  const out = {
+    sellsOrSharesData: { status: 'unclear', answer: '' },
+    dataForAdvertising: { status: 'unclear', answer: '' },
+    thirdPartySharing: { status: 'unclear', answer: '' },
+    hasRefundPolicy: { status: 'unclear', answer: '' },
+    hasCancellationPolicy: { status: 'unclear', answer: '' },
+    paymentsRefundable: { status: 'unclear', answer: '' },
+  };
+  if (!raw || typeof raw !== 'object') {
+    return out;
+  }
+  const obj = /** @type {Record<string, unknown>} */ (raw);
+  for (const key of PRIORITY_KEYS) {
+    const item = obj[key];
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+    const p = /** @type {Record<string, unknown>} */ (item);
+    const status = String(p.status ?? 'unclear').toLowerCase();
+    out[key] = {
+      status: ['yes', 'no', 'unclear'].includes(status) ? status : 'unclear',
+      answer: String(p.answer ?? '').trim(),
+    };
+  }
+  return out;
 }
 
 /** @param {number} score */
@@ -671,17 +808,19 @@ function renderResult(doc, summary, options = {}) {
   const normalized = normalizeSummary(summary);
 
   const confirmNote = doc.needsConfirmation
-    ? '<p class="status warn meta-notes">Low confidence — please verify this is the right document.</p>'
+    ? `<p class="status warn meta-notes">${escapeHtml(t('low_confidence'))}</p>`
     : '';
 
   const cacheNote = options.fromCache
-    ? '<p class="status info meta-notes">Loaded from cache — use Re-analyze for a fresh LLM pass.</p>'
+    ? `<p class="status info meta-notes">${escapeHtml(t('cache_note'))}</p>`
     : '';
 
   const hubNote = doc.fetchedFromHub
-    ? `<p class="status info meta-notes">From linked policy${doc.linkLabel ? `: ${escapeHtml(doc.linkLabel)}` : ''}${
+    ? `<p class="status info meta-notes">${escapeHtml(t('from_hub'))}${
+        doc.linkLabel ? `: ${escapeHtml(doc.linkLabel)}` : ''
+      }${
         doc.originalUrl
-          ? ` · <a href="${escapeHtml(doc.originalUrl)}" target="_blank" rel="noopener">hub page</a>`
+          ? ` · <a href="${escapeHtml(doc.originalUrl)}" target="_blank" rel="noopener">${escapeHtml(t('hub_page'))}</a>`
           : ''
       }</p>`
     : '';
@@ -691,40 +830,109 @@ function renderResult(doc, summary, options = {}) {
     ${cacheNote}
     ${hubNote}
     <span class="badge">${escapeHtml(doc.docType)}</span>
-    <span>${doc.wordCount.toLocaleString()} words</span>
-    · <span>${Math.round(doc.confidence * 100)}% match</span>
-    ${normalized.confidence ? `· <span>${escapeHtml(String(normalized.confidence))} confidence</span>` : ''}
-    <br /><a href="${escapeHtml(doc.sourceUrl)}" target="_blank" rel="noopener">View source</a>
+    <span>${doc.wordCount.toLocaleString()} ${escapeHtml(t('words'))}</span>
+    · <span>${Math.round(doc.confidence * 100)}% ${escapeHtml(t('match'))}</span>
+    ${normalized.confidence ? `· <span>${escapeHtml(String(normalized.confidence))} ${escapeHtml(t('confidence_label'))}</span>` : ''}
+    <br /><a href="${escapeHtml(doc.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(t('view_source'))}</a>
   `;
   metaEl.hidden = false;
 
-  const riskClass = riskSeverityClass(normalized.riskScore);
+  const prioritiesHtml = renderPriorities(normalized.priorities);
+  const riskMeterHtml = renderRiskMeter(normalized.riskScore);
+  const severityBarHtml = renderSeverityBar(normalized.riskScore);
   const riskBreakdownHtml = renderRiskBreakdown(normalized.riskScore);
   const sectionsHtml = ANALYSIS_SECTIONS.map((section) =>
     renderCollapsibleSection(section, normalized[section.key]),
   ).join('');
 
-  const hasContent = normalized.plainSummary || riskBreakdownHtml || sectionsHtml;
+  const hasContent =
+    prioritiesHtml || normalized.plainSummary || riskMeterHtml || riskBreakdownHtml || sectionsHtml;
 
   summaryEl.innerHTML = hasContent
     ? `
+    ${prioritiesHtml}
+    ${riskMeterHtml}
+    ${severityBarHtml}
+    ${riskBreakdownHtml}
     <div class="summary-header">
+      <h3 class="plain-summary-heading">${escapeHtml(t('plain_summary'))}</h3>
       <p class="plain-summary">${
         normalized.plainSummary
           ? escapeHtml(normalized.plainSummary)
-          : '<span class="empty-state" style="padding:0;border:none;background:none">No summary available.</span>'
+          : `<span class="empty-state" style="padding:0;border:none;background:none">${escapeHtml(t('empty_summary'))}</span>`
       }</p>
-      <div class="risk-badge ${riskClass}" title="Risk score ${normalized.riskScore.value}/100">
-        <span class="risk-score">${normalized.riskScore.value}</span>
-        <span class="risk-label">${escapeHtml(formatRiskLabel(normalized.riskScore.label))}</span>
-      </div>
     </div>
-    ${riskBreakdownHtml}
     ${sectionsHtml}
   `
-    : `<div class="empty-state">No analysis sections returned.</div>`;
+    : `<div class="empty-state">${escapeHtml(t('empty_sections'))}</div>`;
 
   summaryEl.hidden = false;
+}
+
+/** @param {import('../lib/types.js').PriorityConcerns} priorities */
+function renderPriorities(priorities) {
+  const cards = PRIORITY_KEYS.map((key) => {
+    const item = priorities[key] ?? { status: 'unclear', answer: '' };
+    const status = ['yes', 'no', 'unclear'].includes(item.status) ? item.status : 'unclear';
+    const statusLabel = t(`status_${status}`);
+    return `
+      <div class="priority-card priority-${status}">
+        <div class="priority-head">
+          <span class="priority-question">${escapeHtml(t(`priority_${key}`))}</span>
+          <span class="priority-chip chip-${status}">${escapeHtml(statusLabel)}</span>
+        </div>
+        ${item.answer ? `<p class="priority-answer">${escapeHtml(item.answer)}</p>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <section class="priorities-section">
+      <h3 class="section-heading">${escapeHtml(t('priority_heading'))}</h3>
+      <div class="priority-cards">${cards}</div>
+    </section>
+  `;
+}
+
+/** @param {{ value: number; label: string }} riskScore */
+function renderRiskMeter(riskScore) {
+  const riskClass = riskSeverityClass(riskScore);
+  return `
+    <div class="risk-meter ${riskClass}">
+      <div class="risk-meter-head">
+        <span class="risk-meter-label">${escapeHtml(t('risk_meter'))}</span>
+        <span class="risk-meter-value">${riskScore.value}/100 · ${escapeHtml(formatRiskLabel(riskScore.label))}</span>
+      </div>
+      <div class="risk-meter-track" role="meter" aria-valuenow="${riskScore.value}" aria-valuemin="0" aria-valuemax="100">
+        <div class="risk-meter-fill" style="width:${riskScore.value}%"></div>
+      </div>
+    </div>
+  `;
+}
+
+/** @param {{ factors: import('../lib/types.js').RiskFactor[] }} riskScore */
+function renderSeverityBar(riskScore) {
+  const counts = { normal: 0, caution: 0, red_flag: 0 };
+  for (const f of riskScore.factors ?? []) {
+    const s = ['normal', 'caution', 'red_flag'].includes(f.severity) ? f.severity : 'normal';
+    counts[s]++;
+  }
+  const total = counts.normal + counts.caution + counts.red_flag;
+  if (!total) {
+    return '';
+  }
+
+  const pct = (n) => Math.round((n / total) * 100);
+  return `
+    <div class="severity-bar-wrap">
+      <span class="severity-bar-label">${escapeHtml(t('severity_breakdown'))}</span>
+      <div class="severity-bar" title="normal ${counts.normal}, caution ${counts.caution}, red flag ${counts.red_flag}">
+        ${counts.red_flag ? `<span class="seg red-flag" style="width:${pct(counts.red_flag)}%"></span>` : ''}
+        ${counts.caution ? `<span class="seg caution" style="width:${pct(counts.caution)}%"></span>` : ''}
+        ${counts.normal ? `<span class="seg normal" style="width:${pct(counts.normal)}%"></span>` : ''}
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -749,7 +957,7 @@ function renderRiskBreakdown(riskScore) {
             <span class="factor-why">${escapeHtml(factor.why)}</span>
           </div>
           <details class="clause-quote">
-            <summary>View clause</summary>
+            <summary>${escapeHtml(t('view_clause'))}</summary>
             <blockquote>${escapeHtml(factor.clause)}</blockquote>
           </details>
         </div>
@@ -761,7 +969,7 @@ function renderRiskBreakdown(riskScore) {
   return `
     <details class="details-section risk-breakdown" open>
       <summary>
-        Risk breakdown
+        ${escapeHtml(t('risk_breakdown'))}
         <span class="count">${riskScore.factors.length}</span>
       </summary>
       <div class="details-body risk-factors">${rows}</div>
@@ -770,7 +978,7 @@ function renderRiskBreakdown(riskScore) {
 }
 
 /**
- * @param {{ key: string; title: string; risk?: boolean; defaultOpen?: boolean }} section
+ * @param {{ key: string; titleKey: string; risk?: boolean; defaultOpen?: boolean }} section
  * @param {string[]} items
  */
 function renderCollapsibleSection(section, items) {
@@ -785,7 +993,7 @@ function renderCollapsibleSection(section, items) {
   return `
     <details class="details-section${riskClass}"${openAttr}>
       <summary>
-        ${escapeHtml(section.title)}
+        ${escapeHtml(t(section.titleKey))}
         <span class="count">${items.length}</span>
       </summary>
       <div class="details-body">

@@ -37,6 +37,28 @@ label {
   font-size: 13px;
 }
 
+.advanced-settings {
+  margin: 12px 0;
+}
+
+.advanced-settings summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5563;
+  margin-bottom: 8px;
+}
+
+select {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+}
+
 input {
   width: 100%;
   margin-bottom: 10px;

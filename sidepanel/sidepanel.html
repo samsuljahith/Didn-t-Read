@@ -10,12 +10,30 @@
     <header class="panel-header">
       <div class="panel-header-text">
         <h1>Didn't Read</h1>
-        <p class="tagline">Legal doc summaries, plain English.</p>
+        <p class="tagline" id="tagline">Legal doc summaries, plain English.</p>
       </div>
-      <button id="settings-btn" type="button" class="header-settings-btn" title="Open Settings">
-        Settings
-      </button>
+      <div class="header-actions">
+        <label class="language-picker" for="language-select">
+          <span class="language-label" id="language-label">Language</span>
+          <select id="language-select" aria-labelledby="language-label">
+            <option value="en">EN</option>
+            <option value="zh">中文</option>
+            <option value="ms">MS</option>
+            <option value="ta">தமிழ்</option>
+          </select>
+        </label>
+        <button id="settings-btn" type="button" class="header-settings-btn" title="Open Settings">
+          Settings
+        </button>
+      </div>
     </header>
+
+    <section id="not-legal-screen" class="not-legal-screen" hidden>
+      <h2 id="not-legal-title">This doesn't look like a legal agreement page.</h2>
+      <p id="not-legal-hint" class="not-legal-hint">
+        Didn't Read only summarizes Terms, Privacy, Cookie policies, and pages that link to them.
+      </p>
+    </section>
 
     <p id="policy-detected" class="policy-detected" hidden></p>
 
@@ -92,6 +110,8 @@
     <section id="meta" class="meta" hidden></section>
     <section id="summary" class="summary" hidden></section>
 
+    <script src="../lib/llm/provider-config.js"></script>
+    <script src="../lib/i18n.js"></script>
     <script src="../lib/consent.js"></script>
     <script src="../lib/permissions.js"></script>
     <script src="sidepanel.js"></script>
