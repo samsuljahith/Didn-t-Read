@@ -13,7 +13,7 @@ const consentDisclosure = document.getElementById('consent-disclosure');
 const consentStatus = document.getElementById('consent-status');
 const withdrawConsentBtn = document.getElementById('withdraw-consent-btn');
 
-const STORAGE_KEYS = {
+const LLM_STORAGE_KEYS = {
   apiKey: 'llmApiKey',
   settings: 'llmSettings',
 };
@@ -41,10 +41,10 @@ async function loadSettings() {
   renderConsentDisclosure();
   await refreshConsentUi();
 
-  const result = await chrome.storage.local.get([STORAGE_KEYS.apiKey, STORAGE_KEYS.settings]);
-  const settings = { ...DEFAULTS, ...result[STORAGE_KEYS.settings] };
+  const result = await chrome.storage.local.get([LLM_STORAGE_KEYS.apiKey, LLM_STORAGE_KEYS.settings]);
+  const settings = { ...DEFAULTS, ...result[LLM_STORAGE_KEYS.settings] };
 
-  updateKeySavedUi(Boolean(result[STORAGE_KEYS.apiKey]));
+  updateKeySavedUi(Boolean(result[LLM_STORAGE_KEYS.apiKey]));
   providerUrlInput.value = settings.providerUrl;
   modelInput.value = settings.model;
   maxChunkInput.value = String(settings.maxChunkTokens);
@@ -73,22 +73,22 @@ async function saveApiKey() {
     return;
   }
 
-  await chrome.storage.local.set({ [STORAGE_KEYS.apiKey]: apiKey });
+  await chrome.storage.local.set({ [LLM_STORAGE_KEYS.apiKey]: apiKey });
   apiKeyInput.value = '';
   updateKeySavedUi(true);
   showStatus('API key saved');
 }
 
 async function saveProviderSettings() {
-  await chrome.storage.local.set({ [STORAGE_KEYS.settings]: readSettings() });
+  await chrome.storage.local.set({ [LLM_STORAGE_KEYS.settings]: readSettings() });
   showStatus('Provider settings saved');
 }
 
 async function testConnection() {
   const settings = readSettings();
   const typedKey = apiKeyInput.value.trim();
-  const stored = await chrome.storage.local.get(STORAGE_KEYS.apiKey);
-  const apiKey = typedKey || stored[STORAGE_KEYS.apiKey] || '';
+  const stored = await chrome.storage.local.get(LLM_STORAGE_KEYS.apiKey);
+  const apiKey = typedKey || stored[LLM_STORAGE_KEYS.apiKey] || '';
 
   if (!apiKey) {
     showStatus('Enter or save an API key first', true);
@@ -115,7 +115,7 @@ async function testConnection() {
 }
 
 async function clearApiKey() {
-  await chrome.storage.local.remove(STORAGE_KEYS.apiKey);
+  await chrome.storage.local.remove(LLM_STORAGE_KEYS.apiKey);
   apiKeyInput.value = '';
   updateKeySavedUi(false);
   showStatus('API key cleared');
