@@ -1,0 +1,9 @@
+{
+  "name": "didnt-read",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Chrome extension that summarizes legal documents with an LLM",
+  "scripts": {
+    "lint": "node --check background/service-worker.js && node --check content/*.js && node --check lib/**/*.js && node --check sidepanel/sidepanel.js && node --check options/options.js"
+  }
+}

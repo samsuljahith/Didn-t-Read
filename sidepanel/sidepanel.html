@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Didn't Read</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Didn't Read</h1>
+      <p class="tagline">Legal doc summaries, plain English.</p>
+    </header>
+
+    <p id="api-key-banner" class="banner" hidden>
+      No API key configured.
+      <a id="options-link" href="#">Add one in Settings</a>
+    </p>
+
+    <section class="actions">
+      <button id="summarize-btn" type="button">Summarize this page</button>
+      <button id="cancel-btn" type="button" class="secondary" hidden>Cancel</button>
+    </section>
+
+    <div id="progress" class="progress" hidden>
+      <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+      <p id="progress-label" class="progress-label"></p>
+    </div>
+
+    <div id="status" class="status" role="alert" hidden></div>
+
+    <section id="meta" class="meta" hidden></section>
+    <section id="summary" class="summary" hidden></section>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

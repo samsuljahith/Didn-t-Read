@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Didn't Read",
+  "version": "0.2.0",
+  "description": "Summarize legal documents (T&C, privacy, cookie policies) on the current page.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Didn't Read",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "options_page": "options/options.html",
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
+  "optional_host_permissions": ["https://*/*"]
+}
