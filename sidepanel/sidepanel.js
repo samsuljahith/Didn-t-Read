@@ -510,7 +510,10 @@ function friendlySummarizeError(message) {
   ) {
     return 'That AI model is outdated. Open Settings (top right), set Model to gemini-2.5-flash, save, then try again.';
   }
-  if (text.includes('invalid api key') || text.includes('api key')) {
+  if (text.includes('invalid json') || text.includes('cut short') || text.includes('garbled')) {
+    return 'The AI response was garbled. Click Re-analyze to try again. If it keeps failing, open Settings and confirm Model is gemini-2.5-flash.';
+  }
+  if (text.includes('invalid api key') || text.includes("key didn't work")) {
     return "Your key didn't work. Open Settings to check or replace it.";
   }
   return String(message);

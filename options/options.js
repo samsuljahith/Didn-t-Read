@@ -22,7 +22,7 @@ const DEFAULTS = {
   providerUrl: 'https://generativelanguage.googleapis.com/v1beta',
   model: 'gemini-2.5-flash',
   maxChunkTokens: 3000,
-  temperature: 0.2,
+  temperature: 0.1,
 };
 
 loadSettings();
