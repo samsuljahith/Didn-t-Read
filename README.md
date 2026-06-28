@@ -1,59 +1,79 @@
 # Didn't Read
 
-Chrome MV3 extension that detects legal documents on the current page (T&C, privacy, cookie policies), extracts text, summarizes via your LLM API key, and renders a structured summary in the side panel.
+A Chrome extension that finds legal documents on the page you're viewing—privacy policies, terms of service, cookie notices—extracts the text, and summarizes it in plain English in a side panel. You bring your own LLM API key; nothing runs on our servers.
 
-## Load unpacked
+## What it does
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked** and select this folder
-4. Open **Settings** and add your API key (OpenAI-compatible endpoint)
-5. Click the toolbar icon to open the side panel, then **Summarize this page**
+1. **Detect** — Scores the page (URL, headings, link text, legal phrasing) to tell a full policy apart from a hub page that only links to one.
+2. **Extract** — Pulls main content with a Readability-style pass (strips nav, footer, ads). Hub pages can follow same-origin policy links automatically.
+3. **Analyze** — Sends text to your configured LLM (OpenAI-compatible API) and renders a structured summary: plain-language overview, risk score, key points, data collection, risky clauses, and more.
+4. **Cache** — Reuses analysis when the same extracted text is seen again (hash keyed in `chrome.storage.local`). Use **Re-analyze** to force a fresh LLM call.
 
-Click the extension icon first so `activeTab` permission is granted for the current tab.
+Open the side panel from the toolbar icon, then click **Summarize this page**. Click the extension icon on the tab first so `activeTab` access is granted.
 
-## Structure
+## Install (unpacked)
+
+1. Clone or download this repository.
+2. Open **`chrome://extensions`** in Chrome.
+3. Enable **Developer mode** (top right).
+4. Click **Load unpacked** and select this project folder (`Didn-t-Read`).
+5. Pin the extension if you like—it appears as **Didn't Read**.
+
+## Setup: add your own API key
+
+1. Click the extension icon → open the side panel → **Settings**,  
+   or right-click the extension → **Options**.
+2. Paste your API key under **Enter or replace API key** → **Save key**.  
+   The key is masked after save (shown as `••••••••••••`).
+3. Set **Provider URL** (default `https://api.openai.com/v1`) and **Model** (default `gpt-4o-mini`).
+4. Click **Test connection** to verify the key and grant network access to the provider.
+5. Return to a legal page, open the side panel, and click **Summarize this page**.
+
+Keys are stored in **`chrome.storage.local`** on your device only. The extension never logs your API key.
+
+## Privacy & data handling
+
+- **Page content** — When you summarize, extracted text from the current page (or a linked same-origin policy) is sent **directly to the LLM provider you configure**. It is not sent to us or any intermediate server.
+- **First-run notice** — The side panel shows a disclosure on first use; dismiss with **Got it**.
+- **API key storage** — Keys live in `chrome.storage.local` on this browser. Anyone with access to your computer can inspect extension storage (DevTools → Application → Extension storage). Do not use on shared machines without understanding that risk.
+- **Analysis cache** — Summaries are cached locally by hash of extracted text so repeat visits avoid another LLM call. Clear by using **Re-analyze** or removing extension data in Chrome settings.
+
+Review sensitive pages before summarizing—you are choosing to send that text to your LLM provider.
+
+## Development
+
+```bash
+npm install
+npm test      # unit tests (scoreLegalDoc)
+npm run lint  # syntax-check extension scripts
+```
+
+After code changes, click **Reload** on `chrome://extensions`.
+
+## Permissions
+
+| Permission | Why |
+|------------|-----|
+| `activeTab` | Read the current tab when you invoke the extension |
+| `scripting` | Inject the content script on demand |
+| `sidePanel` | Summary UI |
+| `storage` | API key, analysis cache, settings |
+| `optional_host_permissions` (`https://api.openai.com/*`) | LLM API calls (requested on test/summarize) |
+
+## Project layout
 
 ```
 manifest.json
-background/service-worker.js   # Orchestration, LLM calls, job lifecycle
-content/
-  detector.js                  # scoreLegalDoc(), hub vs document, policy links
-  extractor.js                 # Thin wrapper around shared extractor
-  content-script.js            # Detection + extraction message handler
-lib/
-  analyze.js                   # Summarize pipeline entry
-  extract-html.js              # Readability-style extraction (page + fetched HTML)
-  fetch-policy.js              # Service worker: fetch linked policy URLs
-  messaging.js                 # Progress/complete broadcasts
-  storage.js                   # API key + session cache
-  types.js                     # Shared JSDoc types
-  llm/
-    client.js                  # OpenAI-compatible fetch client
-    prompts.js                 # Full / chunk / merge prompts
-    chunker.js                 # Token-aware splitting
-    map-reduce.js              # Map + hierarchical reduce
-sidepanel/                     # Side panel UI
-options/                       # API key + model settings
-icons/
+background/service-worker.js
+content/detector.js          # scoreLegalDoc()
+content/extractor.js
+content/content-script.js
+lib/                         # extraction, LLM pipeline, cache
+sidepanel/                   # UI
+options/                     # API key & provider settings
+test/                        # unit tests
 ```
 
 ## Long documents
 
-Documents over ~3,000 words are split into overlapping chunks, summarized in parallel (up to 3 concurrent), then merged via a reduce pass. Very large merge inputs use hierarchical batching.
-
-## Permissions
-
-| Permission | Purpose |
-|------------|---------|
-| `activeTab` | Inject content script on user action |
-| `scripting` | Programmatic content script injection |
-| `sidePanel` | Summary UI |
-| `storage` | API key (local) + per-tab cache (session) |
-| `optional_host_permissions` | `https://api.openai.com/*` — requested when you test/summarize (custom hosts prompt at runtime if declared) |
-
-Same-origin linked policies are fetched via the page content script (no extra host permission). Cross-origin policy links may prompt for access or ask you to open the policy page directly.
-
-## Security
-
-API keys are stored in `chrome.storage.local` on your machine. They are sent only to the LLM provider you configure. This extension does not log API keys. Anyone with access to this computer can inspect extension storage.
+Pages over ~3,000 words are chunked, summarized in parallel, then merged. Progress appears in the side panel during chunking.
