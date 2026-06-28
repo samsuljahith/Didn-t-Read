@@ -11,6 +11,7 @@ const ROOT = join(__dirname, '..');
 function loadGrounding() {
   const context = { globalThis: {} };
   vm.createContext(context);
+  vm.runInContext(readFileSync(join(ROOT, 'lib/llm/validate-summary.js'), 'utf8'), context);
   vm.runInContext(readFileSync(join(ROOT, 'lib/grounding.js'), 'utf8'), context);
   return context.groundSummary;
 }
